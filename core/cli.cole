@@ -1,0 +1,116 @@
+import std::io::stream as IO;
+import std::io::stream::ostream as Output;
+import std::string as String;
+import std::memory::allocator as Allocator;
+
+pub let Value = union(enum) {
+    Int: mut c_long,
+    Float: mut float,
+    String: mut []u8,
+    Bool: mut bool,
+    Null: void,
+
+    pub let toStr = fn (self: Value, allocator: Allocator::Allocator) -> []u8 {
+        return switch self {
+            @Int -> |val| String::intToStr(val, allocator),
+            @Float -> |val| String::floatToStr(val, allocator),
+            @String -> |val| val,
+            @Bool -> |val| if (val) "true" else "false",
+            @Null -> "null",
+        };
+    };
+};
+
+pub let KeyValuePair = struct {
+    key: []u8,
+    value: mut Value,
+    desc: []u8,
+};
+
+pub let Args = struct {
+    pairs: mut []mut KeyValuePair,
+    capacity: u32,
+
+    pub let get = fn (self: *Args, key: []u8) -> Value {
+        for self.pairs, |pair| {
+            if String::equals(key, pair.key) {
+                return pair.value;
+            }
+        }
+
+        return (@Null, ());
+    };
+};
+
+pub let init = fn (gpa: Allocator::Allocator, count: u32) -> Args {
+    let mem: []mut KeyValuePair = unsafeCast(Allocator::alloc(gpa, count, sizeOf(KeyValuePair)));
+
+    return (mem[0..0], count);
+};
+
+pub let option = fn (self: *mut Args, name: []u8, def: bool, desc: []u8) -> bool {
+    if self.pairs.len >= self.capacity {
+        return true;
+    }
+
+    self.pairs = self.pairs[0..self.pairs.len + 1];
+    self.pairs[self.pairs.len - 1] = (name, (@Bool, def), desc);
+
+    return false;
+};
+
+pub let param = fn (self: *mut Args, name: []u8, def: Value, desc: []u8) -> bool {
+    if self.pairs.len >= self.capacity {
+        return true;
+    }
+
+    self.pairs = self.pairs[0..self.pairs.len + 1];
+    self.pairs[self.pairs.len - 1] = (name, def, desc);
+
+    return false;
+};
+
+pub let help = fn (self: *Args, stream: IO::Output::Stream, allocator: Allocator::Allocator) -> void {
+    /* @Bug Stream::Output::writeline errors out */
+    _ = Output::writeline(stream, "usage: jedy [parameters]");
+
+    for self.pairs, |pair| {
+        _ = Output::writebuffer(stream, "    ");
+        _ = Output::writebuffer(stream, pair.key);
+        _ = Output::writebuffer(stream, ": ");
+        _ = Output::writeline(stream, pair.desc);
+        _ = Output::writebuffer(stream, "        (default = ");
+        _ = Output::writebuffer(stream, Value::toStr(pair.value, allocator));
+        _ = Output::writeline(stream, ")");
+    }
+};
+
+pub let parse = fn (self: *mut Args, args: [][]u8) -> bool {
+    let set = fn (_self: *mut Args, _name: []u8, _value: Value) -> bool {
+        for 0.._self.pairs.len, |index| {
+            if String::equals(_self.pairs[index].key, _name) {
+                if _self.pairs[index].value.tag != _value.tag {
+                    return true;
+                }
+
+                _self.pairs[index].value = _value;
+            }
+        }
+
+        return true;
+    };
+
+    for 0..args.len, |index| {
+        let arg = args[index].&;
+        if arg.*[0] != '-' {
+            return true;
+        }
+
+        let param = arg.*[1..arg.len - 1];
+
+        switch Args::get(self, param) {
+        }
+    }
+
+    return false;
+};

@@ -1,0 +1,20 @@
+import std::c;
+import std::string;
+import std::io;
+import std::io::console;
+
+import core::cli;
+
+let main = fn (_args: [][]u8) -> i32 {
+    let args: mut any = core::cli::init(std::c::Allocator, 2);
+
+    if core::cli::param(args.&, "file", (@String, "~/file.txt"), "file to edit")
+       or core::cli::option(args.&, "gui", false, "open in gui mode")
+       or core::cli::parse(args.&, _args) {
+        return 1;
+    }
+
+    std::io::console::log(core::cli::Args::get(args.&, "file").String);
+
+    return 0;
+};
