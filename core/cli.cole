@@ -97,15 +97,15 @@ pub let help = fn (self: *Args, stream: IO::Output::Stream, allocator: Allocator
     }
 };
 
-pub let parse = fn (self: *mut Args, args: [][]u8, stream: IO::Output::Stream, allocator: Allocator::Allocator) -> bool {
-    let set = fn (_self: *mut Args, _name: []u8, _value: Value) -> bool {
+pub let parse = fn (self: mut *mut Args, args: [][]u8, stream: IO::Output::Stream, allocator: Allocator::Allocator) -> bool {
+    let set = fn (_self: mut *mut Args, _name: []u8, _value: Value) -> bool {
         for 0.._self.pairs.len, |index| {
             if String::equals(_self.pairs[index].key, _name) {
                 if _self.pairs[index].value.tag != _value.tag {
                     return true;
                 }
 
-                _self.pairs[index].value = _value;
+                _self.pairs[index].&.value = _value;
             }
         }
 
