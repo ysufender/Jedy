@@ -2,7 +2,7 @@ export module core.window;
 
 import std;
 
-namespace window {
+namespace core::window {
     export struct Position {
         std::size_t line;
         std::size_t column;

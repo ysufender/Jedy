@@ -4,7 +4,7 @@ import std;
 
 import core.buffer;
 
-namespace buffer {
+namespace core::buffer {
     export struct BufferManager {
         private:
             std::unordered_map<std::string, buffer::Buffer> bufferMap;
@@ -41,6 +41,14 @@ namespace buffer {
                 else {
                     return std::nullopt;
                 }
+            }
+
+            inline auto get(std::string_view const name) -> std::optional<Buffer*> {
+                if (this->bufferMap.contains(name)) {
+                    return std::make_optional(&this->bufferMap.at(name))
+                }
+
+                return std::nullopt;
             }
     };
 }

@@ -2,7 +2,7 @@ export module core.buffer;
 
 import std;
 
-namespace buffer {
+namespace core::buffer {
     export struct Buffer {
         private:
             std::size_t overhead;
@@ -26,6 +26,8 @@ namespace buffer {
                 char* buffer = static_cast<char*>(std::calloc(size + overhead, sizeof(char)));
 
                 if (buffer) {
+                    buffer[size] = '\0';
+
                     return std::make_optional(Buffer{
                         /* .overhead = */ overhead, 
                         /* .size     = */ size,

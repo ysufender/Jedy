@@ -2,7 +2,7 @@ export module core.input;
 
 import std;
 
-namespace input {
+namespace core::input {
     export struct Input {
         virtual auto poll() -> void = 0;
         virtual auto await(unsigned int) -> void = 0;

@@ -2,7 +2,7 @@ export module core.cli;
 
 import std;
 
-namespace cli {
+namespace core::cli {
     export struct Value {
         enum class Type {
             string,

@@ -18,4 +18,15 @@ function util.obj(file)
     return "build/"..file..".o"
 end
 
+function util.vendor(name, libs)
+    local res = ""
+    local dir = "vendor/"..name.."/build/lib"
+
+    for _, lib in ipairs(libs) do
+        res = res..dir..lib..".a "
+    end
+
+    return res
+end
+
 return util

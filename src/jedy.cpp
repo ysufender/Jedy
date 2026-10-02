@@ -7,27 +7,37 @@ import tui.window;
 
 constexpr int ArgCount = 2;
 
-auto gui_mode(cli::Args<ArgCount> const& cli, buffer::BufferManager& buffman) -> int {
+auto gui_mode(core::cli::Args<ArgCount> const& cli, core::buffer::BufferManager& buffman) -> int {
     (void)cli;
     (void)buffman;
     std::println("GUI mode is not (yet) implemented.");
     return 1;
 }
 
-auto tui_mode(cli::Args<ArgCount> const& cli, buffer::BufferManager& buffman) -> int {
+auto tui_mode(core::cli::Args<ArgCount> const& cli, core::buffer::BufferManager& buffman) -> int {
     (void)buffman;
     (void)cli;
 
-    auto window = window::create<tui::window::Window<1>, 1>()
+    auto window = core::window::create<tui::window::Window<1>, 1>();
+    if (!window) {
+        std::println("Failed to create window.");
+        return 1;
+    }
+
+    window.value().addPane()
+
+    while (true) {
+        window.value().draw();
+    }
 
     return 0;
 }
 
 auto main(int const argc, char const* const* const args) -> int {
-    cli::Args cli = cli::init<ArgCount>(argc, args);
+    core::cli::Args cli = core::cli::init<ArgCount>(argc, args);
 
     auto const status = cli.option("gui", false, "Open editor in GUI mode.")
-                        .param("file", cli::Value::make<cli::Value::Type::string>("./default.txt"), "file to open")
+                        .param("file", core::cli::Value::make<core::cli::Value::Type::string>("./default.txt"), "file to open")
                         .parse();
 
     if (status) {
@@ -48,7 +58,7 @@ auto main(int const argc, char const* const* const args) -> int {
                             .seekg(0, std::ios::beg)
                             .tellg();
 
-    auto maybeBuffman = buffer::BufferManager::create();
+    auto maybeBuffman = core::buffer::BufferManager::create();
     if (!maybeBuffman) {
         std::println("Error while setting up buffer manager.");
         return 1;
@@ -62,7 +72,7 @@ auto main(int const argc, char const* const* const args) -> int {
         return 1;
     }
 
-    return (cli.get_unwrap<cli::Value::Type::boolean>("gui"))
+    return (cli.get_unwrap<core::cli::Value::Type::boolean>("gui"))
         ? gui_mode(cli, buffman)
         : tui_mode(cli, buffman);
 }

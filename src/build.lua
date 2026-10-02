@@ -21,17 +21,21 @@ function src.build(settings, project)
         :dependOnFiles(sources)
 
     local link = settings.ld..settings.ldflags
-    for _, subdir in ipairs(subdirs) do
-        link = link..util.obj(prefix..subdir).." "
-        src_step:dependOnStep(
-            require("src."..subdir..".build").build(settings, project))
-    end
 
     for _, source in ipairs(sources) do
         src_step:action(util.ccxx(settings, source))
         link = link..util.obj(source).." "
     end
 
+    for _, subdir in ipairs(subdirs) do
+        link = link..util.obj(prefix..subdir).." "
+        src_step:dependOnStep(
+            require("src."..subdir..".build").build(settings, project))
+    end
+
+    for vendor, libs in pairs(settings.vendor) do
+        link = link..util.vendor(vendor, libs).." "
+    end
 
     src_step:action(link.." -o build/jedy")
     project:step(src_step)
