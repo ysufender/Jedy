@@ -2,6 +2,7 @@ import std;
 
 import core.cli;
 import buffer.manager;
+import window;
 
 auto main(int const argc, char const* const* const args) -> int {
     cli::Args cli = cli::init<2>(argc, args);
@@ -46,6 +47,8 @@ auto main(int const argc, char const* const* const args) -> int {
         std::println("Error: {}", result.value());
         return 1;
     }
-    
+
+    window::Pane::create<std::nullptr_t>("");
+
     return 0;
 }
