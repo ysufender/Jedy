@@ -5,7 +5,10 @@ local core = {}
 local prefix = "src/core/"
 
 local sources = {
-    prefix.."cli.cpp"
+    prefix.."buffer.cpp",
+    prefix.."buffer_manager.cpp",
+    prefix.."cli.cpp",
+    prefix.."window.cpp",
 }
 
 ---@param settings Project.Settings
