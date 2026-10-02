@@ -1,8 +1,8 @@
-export module buffer.manager;
+export module core.buffer.manager;
 
 import std;
 
-import buffer;
+import core.buffer;
 
 namespace buffer {
     export struct BufferManager {

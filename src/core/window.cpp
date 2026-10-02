@@ -1,4 +1,4 @@
-export module window;
+export module core.window;
 
 import std;
 
@@ -29,11 +29,19 @@ namespace window {
             }
     };
 
-    export template<class T, int MaxPane>
-    concept Window = requires(T w) {
-        { w.panes } -> std::same_as<std::array<Pane, MaxPane>>;
-        { w.activePane } -> std::same_as<int>;
-        { w.create() } -> std::same_as<std::optional<std::string_view>>;
+    export class IWindow {
+        public:
+            virtual auto addPane(std::string_view const) -> std::optional<std::string_view> = 0;
+            virtual auto draw() -> std::optional<std::string_view> = 0;
+            virtual auto switchPane(int const) -> std::optional<std::string_view> = 0;
+    };
+
+    export template<class WindowType, int MaxPane>
+    concept Window = requires(WindowType w) {
+        requires std::is_base_of_v<Pane, typename WindowType::Pane>;
+        { w.panes } -> std::same_as<std::array<typename WindowType::Pane, MaxPane>&>;
+        { w.activePane } -> std::same_as<int&>;
+
         { w.addPane("buffer_name") } -> std::same_as<std::optional<std::string_view>>;
         { w.draw() } -> std::same_as<std::optional<std::string_view>>;
         { w.switchPane(5) } -> std::same_as<std::optional<std::string_view>>;

@@ -8,7 +8,7 @@ local settings = {
     ccxx     = "g++ ",
     ld       = "g++ ",
     cflags   = " ",
-    cxxflags = "-std=c++26 -fmodules -c ",
+    cxxflags = "-std=c++26 -fmodules -c -Wall -Wextra -Werror -fconcepts-diagnostics-depth=5 ",
     ldflags  = " ",
 
     efile    = Efile,

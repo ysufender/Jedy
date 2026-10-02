@@ -4,28 +4,41 @@ import std;
 
 import window;
 
-namespace tui {
-    export class Pane : public window::Pane {
+namespace tui::window {
+    export template<int MaxPane>
+    class Window {
+        private:
+            Window() : panes(), activePane(0) { }
+
         public:
-            virtual auto draw() -> std::optional<std::string_view>> = 0;
-            virtual auto setpos(Position const) -> std::optional<std::string_view>> = 0;
+            class Pane : public window::Pane {
+                public:
+                    virtual auto draw() -> std::optional<std::string_view> override {
+                        return std::nullopt;
+                    }
 
-            inline auto getpos() -> Position { return this->pos; }
+                    virtual auto setpos(window::Position const) -> std::optional<std::string_view> override {
+                        return std::nullopt;
+                    }
+            };
+
+            std::array<P)ane, MaxPane> panes;
+            int activePane;
+
+            static auto create() -> std::optional<Window> {
+                return { };
+            }
+
+            auto addPane(std::string_view const name) -> std::optional<std::string_view> {
+                return std::nullopt;
+            }
+
+            auto draw() -> std::optional<std::string_view> {
+                return std::nullopt;
+            }
+
+            auto switchPane(int const pnum) -> std::optional<std::string_view> {
+                return std::nullopt;
+            }
     };
-
-    export template<class T, int MaxPane>
-    concept Window = requires(T w) {
-        { w.panes } -> std::same_as<std::array<Pane, MaxPane>>;
-        { w.activePane } -> std::same_as<int>;
-        { w.create() } -> std::same_as<std::optional<std::string_view>>;
-        { w.addPane("buffer_name") } -> std::same_as<std::optional<std::string_view>>;
-        { w.draw() } -> std::same_as<std::optional<std::string_view>>;
-        { w.switch(5) } -> std::same_as<std::optional<std::string_view>>;
-    };
-
-    export template<class WindowType, int MaxPane>
-        requires Window<WindowType, MaxPane>
-    auto create() -> std::optional<WindowType> {
-        return WindowType::create();
-    }
 }

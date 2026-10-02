@@ -1,4 +1,4 @@
-export module buffer;
+export module core.buffer;
 
 import std;
 
@@ -8,7 +8,7 @@ namespace buffer {
             std::size_t overhead;
 
             Buffer(std::size_t const overhead, std::size_t const size, char* const buffer)
-                : overhead(),
+                : overhead(overhead),
                   size(size),
                   buffer(buffer) { }
 

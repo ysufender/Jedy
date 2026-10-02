@@ -5,7 +5,8 @@ local src = {}
 local prefix = "src/"
 
 local subdirs = {
-    "core"
+    "core",
+    "tui",
 }
 
 local sources = {
