@@ -101,6 +101,16 @@ namespace core::cli {
                 return std::nullopt;
             }
 
+            auto get(std::string_view const name) const -> std::optional<Value const*> {
+                for (auto const& [pname, value, _] : this->args) {
+                    if (name == pname) {
+                        return std::make_optional(&value);
+                    }
+                }
+
+                return std::nullopt;
+            }
+
             template<Value::Type Tag>
             auto get_unwrap(std::string_view const name) -> std::conditional_t<Tag == Value::Type::string, std::string_view, bool> {
                 return this->get(name).value()->template unwrap<Tag>();

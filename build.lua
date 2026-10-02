@@ -34,6 +34,43 @@ end
 ccxx_version = file:read("l")
 file:close()
 
+local function install_ftxui()
+    local ftxui = {}
+
+    file = io.open("vendor/ftxui/ftxui.zip", "r")
+    if file then
+        ftxui = {
+            Efile.Step
+                .init("ftxui")
+                :action("echo 'ftxui is already installed'"),
+        }
+
+        file:close()
+    else
+        ftxui = {
+            Efile.Step
+                .init("ftxui-install")
+                :dependOnFiles("build.lua")
+                :action("mkdir -p vendor/ftxui")
+                :action("curl -fsSL https://github.com/ArthurSonzogni/FTXUI/archive/refs/tags/v7.0.3.zip -o vendor/ftxui/ftxui.zip")
+                :action("echo 'Downloading FTXUI...'")
+                :action("unzip -o vendor/ftxui/ftxui.zip -d vendor/ftxui")
+                :action("mv -f -n vendor/ftxui/FTXUI-7.0.3/* vendor/ftxui")
+                :action("rm -rf vendor/ftxui/FTXUI-7.0.3"),
+
+            Efile.Step
+                .init("ftxui")
+                :dependOnStep("ftxui-install")
+                :action("cmake -S vendor/ftxui/ -B vendor/ftxui/build -G Ninja -DFTXUI_BUILD_MODULES=ON -DCMAKE_CXX_STANDARD=26")
+                :action("cmake --build vendor/ftxui/build")
+                :action("mkdir -p gcm.cache/CMakeFiles/ftxui-modules.dir")
+                :action("cp -rf vendor/ftxui/build/CMakeFiles/ftxui-modules.dir/*.gcm gcm.cache/CMakeFiles/ftxui-modules.dir/"),
+        }
+    end
+
+    return ftxui
+end
+
 local project = Efile.Project
     .init(settings.name)
 
@@ -43,25 +80,7 @@ project
         :dependOnFile("/usr/include/c++/"..ccxx_version.."/bits/std.cc")
         :action(settings.ccxx.."-std=c++26 -fmodules -fmodule-only -c /usr/include/c++/"..ccxx_version.."/bits/std.cc"))
 
-    :step(Efile.Step
-        .init("ftxui-install")
-        :dependOnFiles("build.lua")
-        :action("mkdir -p vendor/ftxui")
-        :action("echo 'Downloading FTXUI...'")
-        :action("curl -fsSL https://github.com/ArthurSonzogni/FTXUI/archive/refs/tags/v7.0.3.zip -o vendor/ftxui/ftxui.zip")
-        :action("unzip -o vendor/ftxui/ftxui.zip -d vendor/ftxui")
-        :action("mv -f -n vendor/ftxui/FTXUI-7.0.3/* vendor/ftxui")
-        :action("rm -rf vendor/ftxui/FTXUI-7.0.3"))
-    :step(Efile.Step
-        .init("ftxui")
-        :dependOnStep("ftxui-install")
-        :action("cmake -S vendor/ftxui/ -B vendor/ftxui/build -G Ninja -DFTXUI_BUILD_MODULES=ON -DCMAKE_CXX_STANDARD=26")
-        :action("cmake --build vendor/ftxui/build")
-        :action("mkdir -p gcm.cache/CMakeFiles/ftxui-modules.dir")
-        :action("cp -rf vendor/ftxui/build/CMakeFiles/ftxui-modules.dir/*.gcm gcm.cache/CMakeFiles/ftxui-modules.dir/"))
-        --:action(settings.ccxx..settings.cxxflags.."vendor/ftxui/build/libftxui-modules.a -o vendor/ftxui/build/libftxui.a"))
-
-
+    :multiStep(install_ftxui())
 
     :step(Efile.Step
         .init("setup")
@@ -83,7 +102,11 @@ project
     :step(Efile.Step
         .init("clean")
         :action("rm -rf build")
-        :action("rm -rf vendor"))
+        :action((function()
+            if arg[2] == "all" then
+                return "rm -rf vendor"
+            end
+        end)()))
 
 require("src.build").build(settings, project)
 

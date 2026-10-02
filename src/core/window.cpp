@@ -2,6 +2,8 @@ export module core.window;
 
 import std;
 
+import core.buffer.manager;
+
 namespace core::window {
     export struct Position {
         std::size_t line;
@@ -14,7 +16,7 @@ namespace core::window {
             Position pos = {1, 1};
 
         public:
-            virtual auto draw() -> std::optional<std::string_view> = 0;
+            virtual auto draw(core::buffer::BufferManager&) -> std::optional<std::string_view> = 0;
             virtual auto setpos(Position const) -> std::optional<std::string_view> = 0;
 
             constexpr auto getpos() -> Position { return this->pos; }
@@ -39,7 +41,7 @@ namespace core::window {
     export template<class WindowType, int MaxPane>
     concept Window = requires(WindowType w) {
         requires std::is_base_of_v<Pane, typename WindowType::Pane>;
-        { w.panes } -> std::same_as<std::array<typename WindowType::Pane, MaxPane>&>;
+        { w.panes } -> std::same_as<std::array<std::optional<typename WindowType::Pane>, MaxPane>&>;
         { w.activePane } -> std::same_as<int&>;
 
         { w.addPane("buffer_name") } -> std::same_as<std::optional<std::string_view>>;
@@ -49,7 +51,7 @@ namespace core::window {
 
     export template<class WindowType, int MaxPane>
         requires Window<WindowType, MaxPane>
-    auto create() -> std::optional<WindowType> {
-        return WindowType::create();
+    auto create(core::buffer::BufferManager& manager) -> std::optional<WindowType> {
+        return WindowType::create(manager);
     }
 }

@@ -7,7 +7,7 @@ import core.buffer;
 namespace core::buffer {
     export struct BufferManager {
         private:
-            std::unordered_map<std::string, buffer::Buffer> bufferMap;
+            std::unordered_map<std::string_view, buffer::Buffer> bufferMap;
 
             BufferManager(decltype(bufferMap)&& bmap)
                 : bufferMap(bmap) { }
@@ -20,7 +20,7 @@ namespace core::buffer {
             }
 
             static auto create(std::size_t const overhead) -> std::optional<BufferManager> {
-                std::unordered_map<std::string, buffer::Buffer> bufferMap {overhead};
+                std::unordered_map<std::string_view, buffer::Buffer> bufferMap {overhead};
                 return std::make_optional(BufferManager{
                     /* .bufferMap = */ std::move(bufferMap),
                 });
@@ -35,6 +35,8 @@ namespace core::buffer {
 
                 auto const [_, append] = this->bufferMap.try_emplace(name.data(), std::move(buf.value()));
 
+                std::println("LOG: Adding buffer {}", name);
+
                 if (!append) {
                     return std::make_optional("A buffer with the same name already exists.");
                 }
@@ -45,7 +47,7 @@ namespace core::buffer {
 
             inline auto get(std::string_view const name) -> std::optional<Buffer*> {
                 if (this->bufferMap.contains(name)) {
-                    return std::make_optional(&this->bufferMap.at(name))
+                    return std::make_optional(&this->bufferMap.at(name));
                 }
 
                 return std::nullopt;
