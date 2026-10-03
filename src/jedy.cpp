@@ -14,49 +14,9 @@ auto gui_mode(core::cli::Args<ArgCount> const& cli) -> int {
 }
 
 auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
-    auto const file = cli.get("file").value_or(nullptr);
-
-    std::ifstream input;
-    input.open(file->payload.string.data(), std::ios::in);
-    if (!input.is_open()) {
-        std::println("Failed to open file at path '{}'", file->payload.string);
-        return 1;
-    }
-
-    std::size_t const end = input
-                            .seekg(0, std::ios::end)
-                            .tellg();
-
-    auto maybeBuffman = core::buffer::BufferManager::create();
-    if (!maybeBuffman) {
-        std::println("Error while setting up buffer manager.");
-        return 1;
-    }
-
-    auto buffman = maybeBuffman.value();
-
-    auto const result = buffman.buffer(file->payload.string, end);
-    if (result) {
-        std::println("Error: {}", result.value());
-        return 1;
-    }
-
-    input.seekg(0, std::ios::beg);
-    input.read(buffman.get(file->payload.string).value()->buffer, end);
-
-    auto window = core::window::create<tui::window::Window<1>, 1>(buffman);
-    if (!window) {
-        std::println("Failed to create window.");
-        return 1;
-    }
-
-    window.value().addPane(file->payload.string);
-
-    while (true) {
-        window.value().draw();
-    }
-
-    return 0;
+    (void)cli;
+    std::println("TUI mode is not (yet) implemented.");
+    return 1;
 }
 
 auto main(int const argc, char const* const* const args) -> int {
