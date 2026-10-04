@@ -3,33 +3,66 @@ export module core.window;
 import std;
 
 import core.buffer.manager;
+import core.input;
 
-namespace core::window {
+namespace core {
     export struct Position {
         std::size_t line;
-        std::size_t column;
-    };
+        std::size_t col;
+        std::size_t offset;
 
-    export class Window {
-        public:
-            virtual auto addPane(std::string_view const) -> std::optional<std::string_view> = 0;
-            virtual auto draw() -> std::optional<std::string_view> = 0;
-            virtual auto switchPane(int const) -> std::optional<std::string_view> = 0;
+        auto operator==(Position other) -> bool {
+            return this->line == other.line
+                   && this->col == other.col;
+        }
+
+        auto same(std::size_t line, std::size_t col) -> bool {
+            return this->line == line
+                   && this->col == col;
+        }
     };
+}
+
+namespace core::window {
+    export class Window;
 
     export class Pane {
         protected:
-            std::string_view activeBuffer = "";
-            Position pos = {1, 1};
-            Window& window;
-
-            Pane(Window& window, std::string_view const buf)
-                : window(window),
-                  activeBuffer(buf) { }
+            std::string activeBuffer;
+            Position pos;
 
         public:
-            virtual auto draw(core::buffer::BufferManager&) -> std::optional<std::string_view> = 0;
-            virtual auto setpos(Position const) -> std::optional<std::string_view> = 0;
-            inline auto getpos() -> Position { return this->pos; }
+            Pane(std::string_view const buf)
+                : activeBuffer(buf),
+                  pos({1, 1, 0}) { }
+
+            virtual auto draw(void* const) -> std::optional<std::string_view> { return std::nullopt; }
+            virtual auto setpos(core::Position const) -> std::optional<std::string_view> { return std::nullopt; }
+
+            inline auto getpos() -> core::Position { return this->pos; }
+            inline auto getname() -> std::string const& { return this->activeBuffer; }
+    };
+
+    export class Window {
+        protected:
+            std::vector<std::unique_ptr<Pane>> panes;
+            int active;
+            core::buffer::BufferManager& manager;
+            std::unique_ptr<core::input::Input> input;
+
+        public:
+            Window(core::buffer::BufferManager& manager,
+                   std::unique_ptr<core::input::Input> const input)
+                : panes(),
+                  active(0),
+                  manager(manager),
+                  input(std::move(input)) { }
+
+            virtual auto addPane(std::string_view const) -> std::optional<std::string_view> = 0;
+            virtual auto draw() -> std::optional<std::string_view> = 0;
+            virtual auto input() -> std::optional<std::string_view> = 0;
+            virtual auto switchPane(int const) -> std::optional<std::string_view> = 0;
+            virtual auto close() -> void = 0;
+            virtual auto shouldClose() -> bool = 0;
     };
 }

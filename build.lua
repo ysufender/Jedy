@@ -15,10 +15,13 @@ local settings = {
 
     vendor   = {
         ["ftxui"] = {
-            "ftxui-modules",
-            "ftxui-screen",
-            "ftxui-dom",
-            "ftxui-component"
+            enabled = true,
+            modules = {
+                "ftxui-modules",
+                "ftxui-screen",
+                "ftxui-dom",
+                "ftxui-component"
+            }
         }
     }
 }
@@ -35,6 +38,13 @@ ccxx_version = file:read("l")
 file:close()
 
 local function install_ftxui()
+    if not settings.vendor["ftxui"].enabled then
+        return {
+            Efile.Step
+                .init("ftxui"),
+        }
+    end
+
     local ftxui = {}
 
     file = io.open("vendor/ftxui/ftxui.zip", "r")

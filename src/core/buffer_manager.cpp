@@ -9,25 +9,11 @@ namespace core::buffer {
         private:
             std::unordered_map<std::string_view, buffer::Buffer> bufferMap;
 
-            BufferManager(decltype(bufferMap)&& bmap)
-                : bufferMap(bmap) { }
-
         public:
-            static constexpr std::size_t Default_Overhead = 32;
-
-            static auto create() -> std::optional<BufferManager> {
-                return create(Default_Overhead);
-            }
-
-            static auto create(std::size_t const overhead) -> std::optional<BufferManager> {
-                std::unordered_map<std::string_view, buffer::Buffer> bufferMap {overhead};
-                return std::make_optional(BufferManager{
-                    /* .bufferMap = */ std::move(bufferMap),
-                });
-            }
+            BufferManager() : bufferMap() { }
 
             auto buffer(std::string_view const name, std::size_t const bufSize) -> std::optional<std::string_view> {
-                auto const buf = buffer::Buffer::create(bufSize);
+                auto buf = buffer::Buffer::create(bufSize);
 
                 if (!buf) {
                     return std::make_optional("Failed to create buffer.");
@@ -35,7 +21,7 @@ namespace core::buffer {
 
                 auto const [_, append] = this->bufferMap.try_emplace(name.data(), std::move(buf.value()));
 
-                std::println("LOG: Adding buffer {}", name);
+                std::println("Log: Adding buffer {}", name);
 
                 if (!append) {
                     return std::make_optional("A buffer with the same name already exists.");
@@ -50,6 +36,7 @@ namespace core::buffer {
                     return std::make_optional(&this->bufferMap.at(name));
                 }
 
+                std::println("Error: No buffer with name {}", name);
                 return std::nullopt;
             }
     };

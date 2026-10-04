@@ -9,6 +9,7 @@ local sources = {
     prefix.."buffer_manager.cpp",
     prefix.."cli.cpp",
     prefix.."window.cpp",
+    prefix.."rawmode.cpp",
 }
 
 ---@param settings Project.Settings

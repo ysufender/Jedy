@@ -33,8 +33,8 @@ function src.build(settings, project)
             require("src."..subdir..".build").build(settings, project))
     end
 
-    for vendor, libs in pairs(settings.vendor) do
-        link = link..util.vendor(vendor, libs).." "
+    for vendor, vendor_settings in pairs(settings.vendor) do
+        link = link..util.vendor(vendor, vendor_settings.modules).." "
     end
 
     src_step:action(link.." -o build/jedy")

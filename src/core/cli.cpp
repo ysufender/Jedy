@@ -32,7 +32,7 @@ namespace core::cli {
         }
 
         template<Type Tag>
-        auto unwrap() -> std::conditional_t<Tag == Type::string, std::string_view, bool> {
+        auto unwrap() const -> std::conditional_t<Tag == Type::string, std::string_view, bool> {
             if constexpr (Tag == Type::string) {
                 return this->payload.string;
             } else {
@@ -112,7 +112,7 @@ namespace core::cli {
             }
 
             template<Value::Type Tag>
-            auto get_unwrap(std::string_view const name) -> std::conditional_t<Tag == Value::Type::string, std::string_view, bool> {
+            auto get_unwrap(std::string_view const name) const -> std::conditional_t<Tag == Value::Type::string, std::string_view, bool> {
                 return this->get(name).value()->template unwrap<Tag>();
             }
 
