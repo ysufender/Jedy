@@ -1,3 +1,6 @@
+module;
+#include <unistd.h>
+
 export module tui.window;
 
 import std;
@@ -7,6 +10,7 @@ import ftxui.screen;
 import core.window;
 import core.buffer.manager;
 import core.rawmode;
+import core.input;
 
 namespace tui::window {
     struct WindowContext {
@@ -19,7 +23,7 @@ namespace tui::window {
             Pane(std::string_view const buffer)
                 : core::window::Pane(buffer) { }
  
-            auto draw(void* const ctx) -> std::optional<std::string_view> final {
+            auto draw(void* const ctx) -> std::optional<std::string_view> override {
                 auto& context = *static_cast<WindowContext*>(ctx);
 
                 auto const found = context.manager.get(this->activeBuffer);
@@ -30,9 +34,11 @@ namespace tui::window {
                 int const width = context.screen.dimx();
                 int const height = context.screen.dimy();
 
-                int row = 0;
-                int col = 0;
+                int row = 1;
+                int col = 1;
                 for (char const ch : found.value()->view()) {
+                    context.screen.CellAt(col, row).inverted = false;
+
                     if (row >= height) {
                         break;
                     }
@@ -63,7 +69,7 @@ namespace tui::window {
                 return std::nullopt;
             }
 
-            auto setpos(core::Position const p) -> std::optional<std::string_view> final {
+            auto setpos(core::Position const p) -> std::optional<std::string_view> override {
                 this->pos = p;
                 return std::nullopt;
             }
@@ -73,14 +79,17 @@ namespace tui::window {
         private:
             core::RawMode rawmode;
             bool closing;
+            ftxui::Screen screen;
 
         public:
-            Window(core::buffer::BufferManager& manager)
-                : core::window::Window(manager),
+            Window(core::buffer::BufferManager& manager,
+                   std::unique_ptr<core::input::Input>&& input)
+                : core::window::Window(manager, std::move(input)),
                   rawmode(),
-                  closing(false) { }
+                  closing(false),
+                  screen(ftxui::Screen::Create(ftxui::Dimension::Full())) { }
 
-            auto addPane(std::string_view const buffer) -> std::optional<std::string_view> final {
+            auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
                     this->panes.emplace_back(std::make_unique<Pane>(buffer));
                 } catch (std::exception const&) {
@@ -91,16 +100,42 @@ namespace tui::window {
                 return std::nullopt;
             }
 
-            auto draw() -> std::optional<std::string_view> final {
+            auto process() -> std::optional<std::string_view> override {
+                char c;
+                if (::read(STDIN_FILENO, &c, 1) != 1) {
+                    return std::nullopt;
+                }
+
+                if (c == 0x03) {
+                    this->close();
+                    return std::nullopt;
+                }
+                else if (!std::iscntrl(c)) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const found = this->manager.get(pane->getname());
+                    if (!found) {
+                        return "Failed to get current buffer.";
+                    }
+
+                    auto const res = found.value()->append(pane->getpos().off, c);
+                    if (res) {
+                        return res;
+                    }
+
+                    pane->setpos({pane->getpos().col + 1, pane->getpos().line, pane->getpos().off + 1});
+                }
+
+                return std::nullopt;
+            }
+
+            auto draw() -> std::optional<std::string_view> override {
                 if (this->panes.empty()) {
                     return "No panes to draw.";
                 }
 
-                auto screen = ftxui::Screen::Create(ftxui::Dimension::Full());
-
                 WindowContext context {
                     .manager = this->manager,
-                    .screen = screen,
+                    .screen = this->screen,
                 };
 
                 if (auto const err = this->panes[this->active]->draw(&context)) {
@@ -114,7 +149,7 @@ namespace tui::window {
                 return std::nullopt;
             }
 
-            auto switchPane(int const delta) -> std::optional<std::string_view> final {
+            auto switchPane(int const delta) -> std::optional<std::string_view> override {
                 if (this->panes.empty()) {
                     return "No panes to switch.";
                 }

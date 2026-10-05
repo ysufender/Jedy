@@ -9,7 +9,7 @@ namespace core {
     export struct Position {
         std::size_t line;
         std::size_t col;
-        std::size_t offset;
+        std::size_t off;
 
         auto operator==(Position other) -> bool {
             return this->line == other.line
@@ -52,7 +52,7 @@ namespace core::window {
 
         public:
             Window(core::buffer::BufferManager& manager,
-                   std::unique_ptr<core::input::Input> const input)
+                   std::unique_ptr<core::input::Input>&& input)
                 : panes(),
                   active(0),
                   manager(manager),
@@ -60,7 +60,7 @@ namespace core::window {
 
             virtual auto addPane(std::string_view const) -> std::optional<std::string_view> = 0;
             virtual auto draw() -> std::optional<std::string_view> = 0;
-            virtual auto input() -> std::optional<std::string_view> = 0;
+            virtual auto process() -> std::optional<std::string_view> = 0;
             virtual auto switchPane(int const) -> std::optional<std::string_view> = 0;
             virtual auto close() -> void = 0;
             virtual auto shouldClose() -> bool = 0;

@@ -74,7 +74,8 @@ local function install_ftxui()
                 :action("cmake -S vendor/ftxui/ -B vendor/ftxui/build -G Ninja -DFTXUI_BUILD_MODULES=ON -DCMAKE_CXX_STANDARD=26")
                 :action("cmake --build vendor/ftxui/build")
                 :action("mkdir -p gcm.cache/CMakeFiles/ftxui-modules.dir")
-                :action("cp -rf vendor/ftxui/build/CMakeFiles/ftxui-modules.dir/*.gcm gcm.cache/CMakeFiles/ftxui-modules.dir/"),
+                :action("cp -rf vendor/ftxui/build/CMakeFiles/ftxui-modules.dir/*.gcm gcm.cache/CMakeFiles/ftxui-modules.dir/")
+                :action("cp -rf vendor/ftxui/build/CMakeFiles/ftxui-modules.dir/*.gcm gcm.cache/"),
         }
     end
 
@@ -95,6 +96,7 @@ project
     :step(Efile.Step
         .init("setup")
         :dependOnSteps({
+            "prerequisites",
             "ftxui"
         })
         :dependOnFiles({
@@ -115,6 +117,11 @@ project
         :action((function()
             if arg[2] == "all" then
                 return "rm -rf vendor"
+            end
+        end)())
+        :action((function()
+            if arg[2] == "all" then
+                return "rm -rf gcm.cache"
             end
         end)()))
 

@@ -6,6 +6,7 @@ local prefix = "src/tui/"
 
 local sources = {
     prefix.."window.cpp",
+    prefix.."input.cpp",
 }
 
 ---@param settings Project.Settings

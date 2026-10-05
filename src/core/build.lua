@@ -5,6 +5,7 @@ local core = {}
 local prefix = "src/core/"
 
 local sources = {
+    prefix.."input.cpp",
     prefix.."buffer.cpp",
     prefix.."buffer_manager.cpp",
     prefix.."cli.cpp",

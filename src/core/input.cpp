@@ -3,6 +3,8 @@ export module core.input;
 import std;
 
 namespace core::input {
-    export struct Input {
+    export class Input {
+        public:
+            virtual auto poll() -> void = 0;
     };
 }

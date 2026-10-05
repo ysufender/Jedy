@@ -5,7 +5,9 @@ import std;
 import core.cli;
 import core.buffer.manager;
 import core.window;
+
 import tui.window;
+import tui.input;
 
 constexpr int ArgCount = 2;
 
@@ -47,9 +49,7 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
     }
     buffman.get(file).value()->assign(text);
 
-    auto const input = std::make_unique<tui::input::Input>();
-
-    tui::window::Window window { buffman, input };
+    tui::window::Window window { buffman, std::make_unique<tui::input::Input>() };
     res = window.addPane(file);
     if (res) {
         std::println("Error: Failed to create window. {}", res.value());
@@ -57,7 +57,7 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
     }
 
     do {
-        window.input();
+        window.process();
         window.draw();
     } while (!window.shouldClose());
 

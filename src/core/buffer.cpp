@@ -52,13 +52,24 @@ namespace core::buffer {
                 return std::nullopt;
             }
 
-            auto modify(std::size_t const off, char const data) -> std::optional<std::string_view> {
+            auto append(std::size_t const off, char const data) -> std::optional<std::string_view> {
                 if (off >= this->cap) {
                     return "Out of bounds";
                 }
 
                 if (off > this->used) {
                     this->used = off + 1;
+                }
+
+                std::memmove(this->buffer.get() + off + 1, this->buffer.get() + off, this->used - off);
+
+                this->buffer[off] = data;
+                return std::nullopt;
+            }
+
+            auto modify(std::size_t const off, char const data) -> std::optional<std::string_view> {
+                if (off >= this->cap) {
+                    return "Out of bounds";
                 }
 
                 this->buffer[off] = data;
