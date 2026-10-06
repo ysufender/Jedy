@@ -13,6 +13,18 @@ import core.rawmode;
 import core.input;
 
 namespace tui::window {
+    enum class Mode {
+        Navigation,
+        Input,
+        Selection,
+    };
+
+    constexpr std::string_view ModeStr[] = {
+        "Navigation",
+        "Input",
+        "Selection",
+    };
+
     struct WindowContext {
         core::buffer::BufferManager& manager;
         ftxui::Screen& screen;
@@ -48,6 +60,7 @@ namespace tui::window {
             core::RawMode rawmode;
             bool closing;
             ftxui::Screen screen;
+            Mode mode;
 
         public:
             Window(core::buffer::BufferManager& manager,
@@ -55,7 +68,8 @@ namespace tui::window {
                 : core::window::Window(manager, std::move(input)),
                   rawmode(),
                   closing(false),
-                  screen(ftxui::Screen::Create(ftxui::Dimension::Full())) { }
+                  screen(ftxui::Screen::Create(ftxui::Dimension::Full())),
+                  mode(Mode::Navigation) { }
 
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
@@ -69,17 +83,29 @@ namespace tui::window {
             }
 
             auto process() -> std::optional<std::string_view> override {
-                char c;
-                if (::read(STDIN_FILENO, &c, 1) != 1) {
+                auto const input = this->input->poll();
+
+                if (!input) {
                     return std::nullopt;
                 }
 
-                if (c == 0x03) {
+                auto c = input.value();
+
+                if (c == core::input::Terminate) {
                     this->close();
-                    return std::nullopt;
+                }
+                else switch (this->mode) {
+                    case Mode::Navigation: goto navigation;
+                    case Mode::Input: goto input;
+                    case Mode::Selection: goto selection;
                 }
 
-                if (std::isalnum(c)) {
+
+input:
+                if (c == core::input::Escape) {
+                    this->mode = Mode::Navigation;
+                }
+                else if (std::isalnum(c)) {
                     auto& pane = this->panes.at(this->active);
                     auto const found = this->manager.get(pane->getname());
                     if (!found) {
@@ -93,7 +119,18 @@ namespace tui::window {
 
                     pane->setpos({pane->getpos().col + 1, pane->getpos().line, pane->getpos().off + 1});
                 }
+                return std::nullopt;
 
+navigation:
+                if (c == core::input::I || c == core::input::i) {
+                    this->mode = Mode::Input;
+                }
+                return std::nullopt;
+
+selection:
+                if (c == core::input::Escape) {
+                    this->mode = Mode::Navigation;
+                }
                 return std::nullopt;
             }
 
@@ -101,6 +138,8 @@ namespace tui::window {
                 if (this->panes.empty()) {
                     return "No panes to draw.";
                 }
+
+                this->screen = ftxui::Screen::Create(ftxui::Dimension::Full());
 
                 WindowContext context {
                     .manager = this->manager,
@@ -115,7 +154,7 @@ namespace tui::window {
                         ftxui::flex(context.element),
                         ftxui::bgcolor(
                             res ? ftxui::Color::Red : ftxui::Color::Black,
-                            ftxui::text(res ? res.value() : "Normal")
+                            ftxui::text(ModeStr[static_cast<int>(this->mode)])
                         ),
                         ftxui::color(
                             ftxui::Color::Black,

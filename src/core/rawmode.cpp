@@ -36,8 +36,8 @@ namespace core {
                 termios term = orig;
                 term.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
                 term.c_lflag &= ~(ECHO | ICANON | ISIG | IEXTEN);
-                term.c_cc[VMIN]  = 1;
-                term.c_cc[VTIME] = 0;
+                term.c_cc[VMIN]  = 0;
+                term.c_cc[VTIME] = 1;
                 active = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term) == 0;
                 if (!active) return;
 
