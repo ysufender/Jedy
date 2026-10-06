@@ -5,7 +5,7 @@ export module tui.window;
 
 import std;
 
-import ftxui.screen;
+import ftxui;
 
 import core.window;
 import core.buffer.manager;
@@ -16,6 +16,7 @@ namespace tui::window {
     struct WindowContext {
         core::buffer::BufferManager& manager;
         ftxui::Screen& screen;
+        ftxui::Element element;
     };
 
     export class Pane : public core::window::Pane {
@@ -31,48 +32,7 @@ namespace tui::window {
                     return "Failed to get current buffer.";
                 }
 
-                std::size_t const width = context.screen.dimx();
-                std::size_t const height = context.screen.dimy();
-
-                std::size_t row = 1;
-                std::size_t col = 1;
-                for (char const ch : found.value()->view()) {
-                    if (row >= height - 2) {
-                        break;
-                    }
-                    else if (ch == '\n') {
-                        row++;
-                        col = 1;
-                        continue; 
-                    }
-                    else if (col >= width) {
-                        continue;
-                    }
-
-
-                    if (ch == '\r') {
-                        continue;
-                    }
-                    else if (ch == '\t') {
-                        col += 4 - (col % 4);
-                        continue;
-                    }
-                    else {
-                        context.screen.CellAt(col, row).inverted = this->pos.col == col && this->pos.line == row;
-                        context.screen.CellAt(col, row).character = ch;
-                    }
-
-                    ++col;
-                }
-
-                row = height - 1;
-                col = 1;
-                for (char const ch : this->activeBuffer) {
-                    auto& cell = context.screen.CellAt(col, row);
-                    cell.character = ch;
-                    cell.inverted = true;
-                    col++;
-                }
+                context.element = ftxui::text(found.value()->view());
 
                 return std::nullopt;
             }
@@ -145,15 +105,29 @@ namespace tui::window {
                 WindowContext context {
                     .manager = this->manager,
                     .screen = this->screen,
+                    .element = ftxui::text("No Buffer"),
                 };
 
-                if (auto const err = this->panes[this->active]->draw(&context)) {
-                    std::size_t line = context.screen.dimy() - 2;
-                    std::size_t col = 1;
+                auto const res = this->panes.at(this->active)->draw(&context);
 
-                    return err;
-                }
+                auto const body = ftxui::flex(
+                    ftxui::vbox(
+                        ftxui::flex(context.element),
+                        ftxui::bgcolor(
+                            res ? ftxui::Color::Red : ftxui::Color::Black,
+                            ftxui::text(res ? res.value() : "Normal")
+                        ),
+                        ftxui::color(
+                            ftxui::Color::Black,
+                            ftxui::bgcolor(
+                                ftxui::Color::Green,
+                                ftxui::text(this->panes.at(this->active)->getname())
+                            )
+                        )
+                    )
+                );
 
+                ftxui::Render(this->screen, body);
                 std::cout << "\x1b[H";
                 std::cout << screen.ToString();
                 std::cout << std::flush;
