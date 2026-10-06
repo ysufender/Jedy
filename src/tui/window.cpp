@@ -31,39 +31,47 @@ namespace tui::window {
                     return "Failed to get current buffer.";
                 }
 
-                int const width = context.screen.dimx();
-                int const height = context.screen.dimy();
+                std::size_t const width = context.screen.dimx();
+                std::size_t const height = context.screen.dimy();
 
-                int row = 1;
-                int col = 1;
+                std::size_t row = 1;
+                std::size_t col = 1;
                 for (char const ch : found.value()->view()) {
-                    context.screen.CellAt(col, row).inverted = false;
-
-                    if (row >= height) {
+                    if (row >= height - 2) {
                         break;
                     }
                     else if (ch == '\n') {
-                        ++row;
-                        col = 0;
+                        row++;
+                        col = 1;
+                        continue; 
+                    }
+                    else if (col >= width) {
                         continue;
                     }
-                    else if (ch == '\r') {
+
+
+                    if (ch == '\r') {
                         continue;
                     }
                     else if (ch == '\t') {
                         col += 4 - (col % 4);
                         continue;
                     }
-                    else if (col < width) {
-                        context.screen.CellAt(col, row).character = std::string(1, ch);
+                    else {
+                        context.screen.CellAt(col, row).inverted = this->pos.col == col && this->pos.line == row;
+                        context.screen.CellAt(col, row).character = ch;
                     }
+
                     ++col;
                 }
 
-                auto const cx = static_cast<int>(this->pos.col);
-                auto const cy = static_cast<int>(this->pos.line);
-                if (cx < width && cy < height) {
-                    context.screen.CellAt(cx, cy).inverted = true;
+                row = height - 1;
+                col = 1;
+                for (char const ch : this->activeBuffer) {
+                    auto& cell = context.screen.CellAt(col, row);
+                    cell.character = ch;
+                    cell.inverted = true;
+                    col++;
                 }
 
                 return std::nullopt;
@@ -110,7 +118,8 @@ namespace tui::window {
                     this->close();
                     return std::nullopt;
                 }
-                else if (!std::iscntrl(c)) {
+
+                if (std::isalnum(c)) {
                     auto& pane = this->panes.at(this->active);
                     auto const found = this->manager.get(pane->getname());
                     if (!found) {
@@ -139,6 +148,9 @@ namespace tui::window {
                 };
 
                 if (auto const err = this->panes[this->active]->draw(&context)) {
+                    std::size_t line = context.screen.dimy() - 2;
+                    std::size_t col = 1;
+
                     return err;
                 }
 
