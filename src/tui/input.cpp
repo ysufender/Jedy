@@ -22,8 +22,17 @@ namespace tui::input {
                 if (std::isalnum(terminput)) {
                     inputType = static_cast<core::input::InputType>(terminput);
                 }
-                else {
-                    inputType = static_cast<core::input::InputType>(terminput);
+                else switch (terminput) {
+#define set(x) inputType = core::input::x; break
+#define case(x) case core::input::x: set(x)
+                    case(Terminate);
+                    case(Escape);
+                    case(Backspace);
+#undef set
+#undef case
+                    default: if (std::isalnum(terminput)) {
+                        inputType = static_cast<core::input::InputType>(terminput);
+                    } else goto done;
                 }
                 this->pending.emplace(inputType);
 

@@ -57,10 +57,7 @@ namespace core::buffer {
                     return "Out of bounds";
                 }
 
-                if (off > this->used) {
-                    this->used = off + 1;
-                }
-
+                this->used++;
                 std::memmove(this->buffer.get() + off + 1, this->buffer.get() + off, this->used - off);
 
                 this->buffer[off] = data;

@@ -9,6 +9,7 @@ import ftxui;
 
 import core.window;
 import core.buffer.manager;
+import core.buffer;
 import core.rawmode;
 import core.input;
 
@@ -17,6 +18,7 @@ namespace tui::window {
         Navigation,
         Input,
         Selection,
+        Command,
     };
 
     constexpr std::string_view ModeStr[] = {
@@ -61,15 +63,20 @@ namespace tui::window {
             bool closing;
             ftxui::Screen screen;
             Mode mode;
+            std::stringstream cmdBuf;
 
         public:
+            static constexpr std::size_t DefaultCommandBufferSize = 255;
+
             Window(core::buffer::BufferManager& manager,
                    std::unique_ptr<core::input::Input>&& input)
                 : core::window::Window(manager, std::move(input)),
                   rawmode(),
                   closing(false),
                   screen(ftxui::Screen::Create(ftxui::Dimension::Full())),
-                  mode(Mode::Navigation) { }
+                  mode(Mode::Navigation),
+                  cmdBuf("") {
+            }
 
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
@@ -98,12 +105,31 @@ namespace tui::window {
                     case Mode::Navigation: goto navigation;
                     case Mode::Input: goto input;
                     case Mode::Selection: goto selection;
+                    case Mode::Command: goto command;
                 }
-
 
 input:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
+                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                }
+                else if (c == core::input::Backspace) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const found = this->manager.get(pane->getname());
+                    if (!found) {
+                        return "Failed to get current buffer.";
+                    }
+
+                    auto const res = found.value()->modify(pane->getpos().off, ' ');
+                    if (res) {
+                        return res;
+                    }
+
+                    auto const pos = pane->getpos();
+                    if (pos.col > 1) {
+                        return pane->setpos({pos.line, pos.col - 1, pos.off - 1});
+                    }
+                    return std::nullopt;
                 }
                 else if (std::isalnum(c)) {
                     auto& pane = this->panes.at(this->active);
@@ -117,19 +143,36 @@ input:
                         return res;
                     }
 
-                    pane->setpos({pane->getpos().col + 1, pane->getpos().line, pane->getpos().off + 1});
+                    auto const pos = pane->getpos();
+                    return pane->setpos({pos.line, pos.col + 1, pos.off + 1});
                 }
                 return std::nullopt;
 
 navigation:
                 if (c == core::input::I || c == core::input::i) {
                     this->mode = Mode::Input;
+                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                }
+                else if (c == core::input::At) {
+                    this->mode = Mode::Command;
+                    this->cmdBuf.str("");
                 }
                 return std::nullopt;
 
 selection:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
+                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                }
+                return std::nullopt;
+
+command:
+                if (c == core::input::Escape) {
+                    this->mode = Mode::Navigation;
+                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                }
+                else if (std::isalnum(c)) {
+                    this->cmdBuf << static_cast<char>(c);
                 }
                 return std::nullopt;
             }
@@ -153,20 +196,28 @@ selection:
                     ftxui::vbox(
                         ftxui::flex(context.element),
                         ftxui::bgcolor(
-                            res ? ftxui::Color::Red : ftxui::Color::Black,
-                            ftxui::text(ModeStr[static_cast<int>(this->mode)])
+                            res ? ftxui::Color::Red : ftxui::Color(ftxui::Color::Palette1::Default),
+                            ftxui::text(this->cmdBuf.view())
                         ),
                         ftxui::color(
                             ftxui::Color::Black,
                             ftxui::bgcolor(
                                 ftxui::Color::Green,
-                                ftxui::text(this->panes.at(this->active)->getname())
+                                ftxui::hbox(
+                                    ftxui::text(this->panes.at(this->active)->getname()),
+                                    ftxui::text(":"),
+                                    ftxui::text(std::to_string(this->panes.at(this->active)->getpos().line)),
+                                    ftxui::text(":"),
+                                    ftxui::text(std::to_string(this->panes.at(this->active)->getpos().col))
+                                )
                             )
                         )
                     )
                 );
 
                 ftxui::Render(this->screen, body);
+                auto const pos = this->panes.at(this->active)->getpos();
+                this->screen.CellAt(pos.col - 1, pos.line - 1).inverted = true;
                 std::cout << "\x1b[H";
                 std::cout << screen.ToString();
                 std::cout << std::flush;
