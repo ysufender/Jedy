@@ -98,7 +98,7 @@ namespace tui::window {
 
                 auto c = input.value();
 
-                if (c == core::input::Terminate) {
+                if (c == core::input::ETX) {
                     this->close();
                 }
                 else switch (this->mode) {
@@ -120,16 +120,17 @@ input:
                         return "Failed to get current buffer.";
                     }
 
-                    auto const res = found.value()->modify(pane->getpos().off, ' ');
+                    auto const pos = pane->getpos();
+                    if (pos.col <= 1) {
+                        return std::nullopt;
+                    }
+
+                    auto const res = found.value()->modify(pos.off - 1, ' ');
                     if (res) {
                         return res;
                     }
 
-                    auto const pos = pane->getpos();
-                    if (pos.col > 1) {
-                        return pane->setpos({pos.line, pos.col - 1, pos.off - 1});
-                    }
-                    return std::nullopt;
+                    return pane->setpos({pos.line, pos.col - 1, pos.off - 1});
                 }
                 else if (std::isalnum(c)) {
                     auto& pane = this->panes.at(this->active);

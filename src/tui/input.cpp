@@ -14,29 +14,10 @@ namespace tui::input {
 
             auto poll() -> std::optional<core::input::InputType> override {
                 char terminput;
-                if (::read(STDIN_FILENO, &terminput, 1) != 1) {
-                    goto done;
+                if (::read(STDIN_FILENO, &terminput, 1) == 1) {
+                    this->pending.emplace(static_cast<core::input::InputType>(terminput));
                 }
 
-                core::input::InputType inputType;
-                if (std::isalnum(terminput)) {
-                    inputType = static_cast<core::input::InputType>(terminput);
-                }
-                else switch (terminput) {
-#define set(x) inputType = core::input::x; break
-#define case(x) case core::input::x: set(x)
-                    case(Terminate);
-                    case(Escape);
-                    case(Backspace);
-#undef set
-#undef case
-                    default: if (std::isalnum(terminput)) {
-                        inputType = static_cast<core::input::InputType>(terminput);
-                    } else goto done;
-                }
-                this->pending.emplace(inputType);
-
-done:
                 if (this->pending.empty()) {
                     return std::nullopt;
                 }
