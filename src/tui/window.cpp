@@ -154,9 +154,32 @@ navigation:
                     this->mode = Mode::Input;
                     this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
                 }
-                else if (c == core::input::At) {
+                else if (c == core::input::Colon) {
                     this->mode = Mode::Command;
                     this->cmdBuf.str("");
+                }
+                else if (c == core::input::h) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const pos = pane->getpos();
+
+                    if (pos.col > 1) {
+                        pane->setpos({pos.line, pos.col - 1, pos.off - 1});
+                    }
+                }
+                else if (c == core::input::l) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const pos = pane->getpos();
+
+                    auto const maybeBuf = this->manager.get(pane->getname());
+
+                    if (!maybeBuf) {
+                        return std::nullopt;
+                    }
+
+                    auto const next = maybeBuf.value()->get(pos.off);
+                    if (next && next.value() != '\n' && next.value() != '\0' && next.value() != core::input::ETX) {
+                        pane->setpos({pos.line, pos.col + 1, pos.off + 1});
+                    }
                 }
                 return std::nullopt;
 
