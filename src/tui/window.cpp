@@ -132,6 +132,19 @@ input:
 
                     return pane->setpos({pos.line, pos.col - 1, pos.off - 1});
                 }
+                else if (c == core::input::Delete) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const found = this->manager.get(pane->getname());
+                    if (!found) {
+                        return "Failed to get current buffer.";
+                    }
+
+                    auto const pos = pane->getpos();
+                    // TODO Continue
+                    if (found.value()->get()) {
+                        return std::nullopt;
+                    }
+                }
                 else if (std::isalnum(c)) {
                     auto& pane = this->panes.at(this->active);
                     auto const found = this->manager.get(pane->getname());
