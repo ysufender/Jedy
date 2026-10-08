@@ -54,7 +54,7 @@ namespace core::input {
         Minus,
         Dot,
         Slash,
-        _0, _1, _2, _4, _5, _6, _7, _8, _9,
+        _0, _1, _3, _2, _4, _5, _6, _7, _8, _9,
         Colon,
         Semicolon,
         LArrow,

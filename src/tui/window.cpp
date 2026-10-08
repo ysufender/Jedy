@@ -63,7 +63,7 @@ namespace tui::window {
             bool closing;
             ftxui::Screen screen;
             Mode mode;
-            std::stringstream cmdBuf;
+            std::string_view cmdBuf;
 
         public:
             static constexpr std::size_t DefaultCommandBufferSize = 255;
@@ -75,7 +75,8 @@ namespace tui::window {
                   closing(false),
                   screen(ftxui::Screen::Create(ftxui::Dimension::Full())),
                   mode(Mode::Navigation),
-                  cmdBuf("") {
+                  cmdBuf("<command_buffer>") {
+                manager.buffer("<command_buffer>", 255);
             }
 
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
@@ -98,6 +99,8 @@ namespace tui::window {
 
                 auto c = input.value();
 
+                auto commandBuffer = this->manager.get("<command_buffer>").value();
+
                 if (c == core::input::ETX) {
                     this->close();
                 }
@@ -111,7 +114,7 @@ namespace tui::window {
 input:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
-                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
                 else if (c == core::input::Backspace) {
                     auto& pane = this->panes.at(this->active);
@@ -140,12 +143,14 @@ input:
                     }
 
                     auto const pos = pane->getpos();
-                    // TODO Continue
-                    if (found.value()->get()) {
+                    auto const cursor = found.value()->get(pos.off);
+                    if (cursor == '\n' || cursor == '\r' || cursor == '\0' || cursor == core::input::ETX) {
                         return std::nullopt;
                     }
+
+                    return found.value()->remove(pos.off);
                 }
-                else if (std::isalnum(c)) {
+                else if (!std::iscntrl(c)) {
                     auto& pane = this->panes.at(this->active);
                     auto const found = this->manager.get(pane->getname());
                     if (!found) {
@@ -163,13 +168,31 @@ input:
                 return std::nullopt;
 
 navigation:
-                if (c == core::input::I || c == core::input::i) {
+                if (c == core::input::i) {
                     this->mode = Mode::Input;
-                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
+                }
+                else if (c == core::input::a) {
+                    this->mode = Mode::Input;
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
+
+                    auto& pane = this->panes.at(this->active);
+                    auto const pos = pane->getpos();
+
+                    auto const maybeBuf = this->manager.get(pane->getname());
+
+                    if (!maybeBuf) {
+                        return std::nullopt;
+                    }
+
+                    auto const next = maybeBuf.value()->get(pos.off);
+                    if (next && next.value() != '\n' && next.value() != '\0' && next.value() != core::input::ETX) {
+                        pane->setpos({pos.line, pos.col + 1, pos.off + 1});
+                    }
                 }
                 else if (c == core::input::Colon) {
                     this->mode = Mode::Command;
-                    this->cmdBuf.str("");
+                    commandBuffer->assign("");
                 }
                 else if (c == core::input::h) {
                     auto& pane = this->panes.at(this->active);
@@ -199,17 +222,20 @@ navigation:
 selection:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
-                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
                 return std::nullopt;
 
 command:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
-                    this->cmdBuf.str(ModeStr[static_cast<int>(this->mode)]);
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
-                else if (std::isalnum(c)) {
-                    this->cmdBuf << static_cast<char>(c);
+                else if (c == core::input::Backspace) {
+                    return commandBuffer->remove(commandBuffer->view().size() - 1);
+                }
+                else if (!std::iscntrl(c)) {
+                    commandBuffer->append(commandBuffer->view().size() - 1, static_cast<char>(c));
                 }
                 return std::nullopt;
             }
@@ -229,12 +255,14 @@ command:
 
                 auto const res = this->panes.at(this->active)->draw(&context);
 
+                auto const cmdBuf = this->manager.get("<command_buffer>").value()->view();
+
                 auto const body = ftxui::flex(
                     ftxui::vbox(
                         ftxui::flex(context.element),
                         ftxui::bgcolor(
                             res ? ftxui::Color::Red : ftxui::Color(ftxui::Color::Palette1::Default),
-                            ftxui::text(this->cmdBuf.view())
+                            ftxui::text(cmdBuf)
                         ),
                         ftxui::color(
                             ftxui::Color::Black,
