@@ -46,7 +46,7 @@ namespace tui::window {
                     return "Failed to get current buffer.";
                 }
 
-                context.element = ftxui::text(found.value()->view());
+                context.element = ftxui::paragraph(found.value()->view());
 
                 return std::nullopt;
             }
@@ -125,7 +125,7 @@ input:
                         return std::nullopt;
                     }
 
-                    auto const res = found.value()->modify(pos.off - 1, ' ');
+                    auto const res = found.value()->remove(pos.off - 1);
                     if (res) {
                         return res;
                     }

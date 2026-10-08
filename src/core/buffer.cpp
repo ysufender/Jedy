@@ -88,7 +88,22 @@ namespace core::buffer {
 
                 std::memmove(this->buffer.get() + off + 1, this->buffer.get() + off, this->used - off);
                 this->buffer[off] = data;
-                ++this->used;
+                this->used++;
+                return std::nullopt;
+            }
+
+            auto remove(std::size_t const off) -> std::optional<std::string_view> {
+                if (off > this->used) {
+                    return "Offset is past the end of the buffer.";
+                }
+
+                auto const res = this->modify(off, ' ');
+                if (res) {
+                    return res;
+                }
+
+                std::memmove(this->buffer.get() + off, this->buffer.get() + off + 1, this->used - off - 1);
+                this->used--;
                 return std::nullopt;
             }
 
