@@ -37,7 +37,7 @@ namespace tui::window {
         public:
             Pane(std::string_view const buffer)
                 : core::window::Pane(buffer) { }
- 
+
             auto draw(void* const ctx) -> std::optional<std::string_view> override {
                 auto& context = *static_cast<WindowContext*>(ctx);
 
@@ -125,15 +125,22 @@ input:
 
                     auto const pos = pane->getpos();
                     if (pos.col <= 1) {
-                        if (pos.line > 1 && pos.off >= 2) {
+                        if (pos.line > 1 && pos.off >= 1) {
+                            auto const before = found.value()->view();
+                            auto const crlf = pos.off >= 2
+                                && before[pos.off - 2] == '\r'
+                                && before[pos.off - 1] == '\n';
+
                             auto res = found.value()->remove(pos.off - 1);
                             if (res) { return res; }
-                            res = found.value()->remove(pos.off - 2);
-                            if (res) { return res; }
+                            if (crlf) {
+                                res = found.value()->remove(pos.off - 2);
+                                if (res) { return res; }
+                            }
 
-                            auto const end = pos.off - 2;
-                            auto const text = found.value()->view();
-                            auto const nl = text.substr(0, end).rfind('\n');
+                            auto const end = pos.off - (crlf ? 2 : 1);
+                            auto const after = found.value()->view();
+                            auto const nl = after.substr(0, end).rfind('\n');
                             auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
                             auto const col = end - lineStart + 1;
 
@@ -158,7 +165,18 @@ input:
 
                     auto const pos = pane->getpos();
                     auto const cursor = found.value()->get(pos.off);
-                    if (cursor == '\n' || cursor == '\r' || cursor == '\0' || cursor == core::input::ETX) {
+                    if (!cursor || cursor.value() == '\0' || cursor.value() == core::input::ETX) {
+                        return std::nullopt;
+                    }
+
+                    if (cursor.value() == '\r') {
+                        auto const res = found.value()->remove(pos.off);
+                        if (res) { return res; }
+
+                        auto const next = found.value()->get(pos.off);
+                        if (next && next.value() == '\n') {
+                            return found.value()->remove(pos.off);
+                        }
                         return std::nullopt;
                     }
 
@@ -186,16 +204,16 @@ input:
                         return "Failed to get current buffer.";
                     }
 
-                    auto res = found.value()->append(pane->getpos().off, '\r');
+                    auto const pos = pane->getpos();
+                    auto res = found.value()->append(pos.off, '\r');
                     if (res) {
                         return res;
                     }
-                    res = found.value()->append(pane->getpos().off, '\n');
+                    res = found.value()->append(pos.off + 1, '\n');
                     if (res) {
                         return res;
                     }
 
-                    auto const pos = pane->getpos();
                     return pane->setpos({pos.line + 1, 1, pos.off + 2});
                 }
                 return std::nullopt;
@@ -219,7 +237,11 @@ navigation:
                     }
 
                     auto const next = maybeBuf.value()->get(pos.off);
-                    if (next && next.value() != '\n' && next.value() != '\0' && next.value() != core::input::ETX) {
+                    if (next
+                        && next.value() != '\r'
+                        && next.value() != '\n'
+                        && next.value() != '\0'
+                        && next.value() != core::input::ETX) {
                         pane->setpos({pos.line, pos.col + 1, pos.off + 1});
                     }
                 }
@@ -246,7 +268,11 @@ navigation:
                     }
 
                     auto const next = maybeBuf.value()->get(pos.off);
-                    if (next && next.value() != '\n' && next.value() != '\0' && next.value() != core::input::ETX) {
+                    if (next
+                        && next.value() != '\r'
+                        && next.value() != '\n'
+                        && next.value() != '\0'
+                        && next.value() != core::input::ETX) {
                         pane->setpos({pos.line, pos.col + 1, pos.off + 1});
                     }
                 }
