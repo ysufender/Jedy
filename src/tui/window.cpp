@@ -276,6 +276,63 @@ navigation:
                         pane->setpos({pos.line, pos.col + 1, pos.off + 1});
                     }
                 }
+                else if (c == core::input::k) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const pos = pane->getpos();
+
+                    if (pos.line <= 1) {
+                        return std::nullopt;
+                    }
+
+                    auto const maybeBuf = this->manager.get(pane->getname());
+                    if (!maybeBuf) {
+                        return std::nullopt;
+                    }
+
+                    auto const text = maybeBuf.value()->view();
+                    auto const lineStart = pos.off - (pos.col - 1);
+                    if (lineStart < 1) {
+                        return std::nullopt;
+                    }
+
+                    auto const nl = text.substr(0, lineStart - 1).rfind('\n');
+                    auto const prevStart = (nl == std::string_view::npos) ? 0 : nl + 1;
+                    auto const crlf = lineStart >= 2 && text[lineStart - 2] == '\r';
+                    auto const prevEnd = lineStart - 1 - (crlf ? 1 : 0);
+                    auto const len = prevEnd - prevStart;
+                    auto const maxIdx = len > 0 ? len - 1 : 0;
+                    auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
+
+                    return pane->setpos({pos.line - 1, idx + 1, prevStart + idx});
+                }
+                else if (c == core::input::j) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const pos = pane->getpos();
+
+                    auto const maybeBuf = this->manager.get(pane->getname());
+                    if (!maybeBuf) {
+                        return std::nullopt;
+                    }
+
+                    auto const text = maybeBuf.value()->view();
+                    auto const nl = text.find('\n', pos.off);
+                    if (nl == std::string_view::npos) {
+                        return std::nullopt;
+                    }
+
+                    auto const nextStart = nl + 1;
+                    auto const terminators = std::string_view{"\r\n\0\x03", 4};
+                    auto nextEnd = text.find_first_of(terminators, nextStart);
+                    if (nextEnd == std::string_view::npos) {
+                        nextEnd = text.size();
+                    }
+
+                    auto const len = nextEnd - nextStart;
+                    auto const maxIdx = len > 0 ? len - 1 : 0;
+                    auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
+
+                    return pane->setpos({pos.line + 1, idx + 1, nextStart + idx});
+                }
                 return std::nullopt;
 
 selection:
