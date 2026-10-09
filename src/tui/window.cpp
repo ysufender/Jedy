@@ -34,16 +34,37 @@ auto computeTopLine(std::string_view const text, std::size_t const line, int con
     return std::min(line > half ? line - half : 1, maxTop);
 }
 
+auto charClass(char const c) -> int {
+    if (std::isspace(static_cast<unsigned char>(c))) {
+        return 0;
+    }
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
+        return 1;
+    }
+    return 2;
+}
+
+auto positionAt(std::string_view const text, std::size_t const off) -> core::Position {
+    auto const head = text.substr(0, off);
+    auto const line = static_cast<std::size_t>(std::ranges::count(head, '\n')) + 1;
+    auto const nl = head.rfind('\n');
+    auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
+    return {line, off - lineStart + 1, off};
+}
+
 namespace tui::window {
     enum class Mode {
         Navigation,
         Input,
+        Selection,
         Command,
     };
 
     constexpr std::string_view ModeStr[] = {
         "Navigation",
         "Input",
+        "Selection",
+        "Command",
     };
 
     struct WindowContext {
@@ -116,6 +137,7 @@ namespace tui::window {
             ftxui::Screen screen;
             Mode mode;
             std::string_view cmdBuf;
+            core::Position selectionStart;
 
         public:
             static constexpr std::size_t DefaultCommandBufferSize = 255;
@@ -129,9 +151,8 @@ namespace tui::window {
                   closing(false),
                   screen(ftxui::Screen::Create(ftxui::Dimension::Full())),
                   mode(Mode::Navigation),
-                  cmdBuf("<command_buffer>") {
-                manager.buffer("<command_buffer>", 255);
-            }
+                  cmdBuf("<command_buffer>"),
+                  selectionStart(1, 1, 0) { }
 
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
@@ -159,7 +180,39 @@ namespace tui::window {
                     case Mode::Navigation: goto navigation;
                     case Mode::Input: goto input;
                     case Mode::Command: goto command;
+                    case Mode::Selection: goto selection;
                 }
+
+selection:
+                if (c == core::input::Escape) {
+                    this->mode = Mode::Navigation;
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
+                }
+                else if (c == core::input::w) {
+                    return this->skipForward();
+                }
+                else if (c == core::input::b) {
+                    return this->skipBackward();
+                }
+                else if (c == core::input::LBracket) {
+                    return this->skipToBeginning();
+                }
+                else if (c == core::input::RBracket) {
+                    return this->skipToEnd();
+                }
+                else if (c == core::input::h) {
+                    return this->moveLeft();
+                }
+                else if (c == core::input::l) {
+                    return this->moveRight();
+                }
+                else if (c == core::input::k) {
+                    return this->moveUp();
+                }
+                else if (c == core::input::j) {
+                    return this->moveDown();
+                }
+                return std::nullopt;
 
 input:
                 if (c == core::input::Escape) {
@@ -273,28 +326,22 @@ navigation:
                     this->mode = Mode::Input;
                     commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
+                else if (c == core::input::v) {
+                    this->selectionStart = this->panes.at(this->active)->getpos();
+                    this->mode = Mode::Selection;
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
+                }
+                else if (c == core::input::w) {
+                    return this->skipForward();
+                }
+                else if (c == core::input::b) {
+                    return this->skipBackward();
+                }
                 else if (c == core::input::LBracket) {
-                    auto& pane = this->panes.at(this->active);
-                    pane->setpos({1, 1, 0});
+                    return this->skipToBeginning();
                 }
                 else if (c == core::input::RBracket) {
-                    auto& pane = this->panes.at(this->active);
-
-                    auto const maybeBuf = this->manager.get(pane->getname());
-                    if (!maybeBuf) {
-                        return "Failed to get buffer";
-                    }
-
-                    auto const view = maybeBuf.value()->view();
-                    auto const terminators = std::string_view{"\0\x03", 2};
-                    auto const end = std::min(view.find_first_of(terminators), view.size());
-                    auto const text = view.substr(0, end);
-
-                    auto const line = static_cast<std::size_t>(std::ranges::count(text, '\n')) + 1;
-                    auto const nl = text.rfind('\n');
-                    auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
-
-                    return pane->setpos({line, end - lineStart + 1, end});
+                    return this->skipToEnd();
                 }
                 else if (c == core::input::a) {
                     this->mode = Mode::Input;
@@ -323,88 +370,16 @@ navigation:
                     commandBuffer->assign(":");
                 }
                 else if (c == core::input::h) {
-                    auto& pane = this->panes.at(this->active);
-                    auto const pos = pane->getpos();
-
-                    if (pos.col > 1) {
-                        pane->setpos({pos.line, pos.col - 1, pos.off - 1});
-                    }
+                    return this->moveLeft();
                 }
                 else if (c == core::input::l) {
-                    auto& pane = this->panes.at(this->active);
-                    auto const pos = pane->getpos();
-
-                    auto const maybeBuf = this->manager.get(pane->getname());
-
-                    if (!maybeBuf) {
-                        return std::nullopt;
-                    }
-
-                    auto const next = maybeBuf.value()->get(pos.off);
-                    if (next
-                        && next.value() != '\r'
-                        && next.value() != '\n'
-                        && next.value() != '\0'
-                        && next.value() != core::input::ETX) {
-                        pane->setpos({pos.line, pos.col + 1, pos.off + 1});
-                    }
+                    return this->moveRight();
                 }
                 else if (c == core::input::k) {
-                    auto& pane = this->panes.at(this->active);
-                    auto const pos = pane->getpos();
-
-                    if (pos.line <= 1) {
-                        return std::nullopt;
-                    }
-
-                    auto const maybeBuf = this->manager.get(pane->getname());
-                    if (!maybeBuf) {
-                        return std::nullopt;
-                    }
-
-                    auto const text = maybeBuf.value()->view();
-                    auto const lineStart = pos.off - (pos.col - 1);
-                    if (lineStart < 1) {
-                        return std::nullopt;
-                    }
-
-                    auto const nl = text.substr(0, lineStart - 1).rfind('\n');
-                    auto const prevStart = (nl == std::string_view::npos) ? 0 : nl + 1;
-                    auto const crlf = lineStart >= 2 && text[lineStart - 2] == '\r';
-                    auto const prevEnd = lineStart - 1 - (crlf ? 1 : 0);
-                    auto const len = prevEnd - prevStart;
-                    auto const maxIdx = len > 0 ? len - 1 : 0;
-                    auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
-
-                    return pane->setpos({pos.line - 1, idx + 1, prevStart + idx});
+                    return this->moveUp();
                 }
                 else if (c == core::input::j) {
-                    auto& pane = this->panes.at(this->active);
-                    auto const pos = pane->getpos();
-
-                    auto const maybeBuf = this->manager.get(pane->getname());
-                    if (!maybeBuf) {
-                        return std::nullopt;
-                    }
-
-                    auto const text = maybeBuf.value()->view();
-                    auto const nl = text.find('\n', pos.off);
-                    if (nl == std::string_view::npos) {
-                        return std::nullopt;
-                    }
-
-                    auto const nextStart = nl + 1;
-                    auto const terminators = std::string_view{"\r\n\0\x03", 4};
-                    auto nextEnd = text.find_first_of(terminators, nextStart);
-                    if (nextEnd == std::string_view::npos) {
-                        nextEnd = text.size();
-                    }
-
-                    auto const len = nextEnd - nextStart;
-                    auto const maxIdx = len > 0 ? len - 1 : 0;
-                    auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
-
-                    return pane->setpos({pos.line + 1, idx + 1, nextStart + idx});
+                    return this->moveDown();
                 }
                 return std::nullopt;
 
@@ -500,7 +475,37 @@ command:
                 auto const pos = activePane->getpos();
                 if (auto const buf = this->manager.get(activePane->getname())) {
                     auto const topLine = computeTopLine(buf.value()->view(), pos.line, this->screen.dimy());
-                    this->screen.CellAt(static_cast<int>(pos.col) + 6, static_cast<int>(pos.line - topLine)).inverted = true;
+
+                    if (this->mode == Mode::Selection) {
+                        core::Position spos;
+                        core::Position epos;
+
+                        if (pos.line > this->selectionStart.line) {
+                            epos = pos;
+                            spos = this->selectionStart;
+                        }
+                        else if (pos.col >= this->selectionStart.line) {
+                            epos = pos;
+                            spos = this->selectionStart;
+                        }
+                        else {
+                            epos = this->selectionStart;
+                            spos = pos;
+                        }
+
+                        while (spos != epos) {
+                            if (buf.value()->view().at(spos.off) == '\n') {
+                                spos.line++;
+                                spos.col = 1;
+                                spos.off++;
+                            }
+
+                            this->screen.CellAt(static_cast<int>(spos.col) + 6, static_cast<int>(spos.line - topLine)).inverted = true;
+                        }
+                    }
+                    else {
+                        this->screen.CellAt(static_cast<int>(pos.col) + 6, static_cast<int>(pos.line - topLine)).inverted = true;
+                    }
                 }
                 std::cout << "\x1b[H";
                 std::cout << screen.ToString();
@@ -526,6 +531,185 @@ command:
 
             auto shouldClose() -> bool override {
                 return closing;
+            }
+
+        private:
+            auto skipForward() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return "Failed to get buffer";
+                }
+
+                auto const view = maybeBuf.value()->view();
+                auto const terminators = std::string_view{"\0\x03", 2};
+                auto const end = std::min(view.find_first_of(terminators), view.size());
+                auto const text = view.substr(0, end);
+
+                auto off = pos.off;
+                if (off >= end) {
+                    return std::nullopt;
+                }
+
+                auto const cls = charClass(text[off]);
+                if (cls != 0) {
+                    while (off < end && charClass(text[off]) == cls) {
+                        off++;
+                    }
+                }
+                while (off < end && charClass(text[off]) == 0) {
+                    off++;
+                }
+
+                return pane->setpos(positionAt(text, off));
+            }
+
+            auto skipBackward() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return "Failed to get buffer";
+                }
+
+                auto const view = maybeBuf.value()->view();
+                auto const terminators = std::string_view{"\0\x03", 2};
+                auto const end = std::min(view.find_first_of(terminators), view.size());
+                auto const text = view.substr(0, end);
+
+                auto off = std::min<std::size_t>(pos.off, end);
+
+                while (off > 0 && charClass(text[off - 1]) == 0) {
+                    off--;
+                }
+                if (off > 0) {
+                    auto const cls = charClass(text[off - 1]);
+                    while (off > 0 && charClass(text[off - 1]) == cls) {
+                        off--;
+                    }
+                }
+
+                return pane->setpos(positionAt(text, off));
+            }
+
+            auto skipToBeginning() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                return pane->setpos({1, 1, 0});
+            }
+
+            auto skipToEnd() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return "Failed to get buffer";
+                }
+
+                auto const view = maybeBuf.value()->view();
+                auto const terminators = std::string_view{"\0\x03", 2};
+                auto const end = std::min(view.find_first_of(terminators), view.size());
+                auto const text = view.substr(0, end);
+
+                auto const line = static_cast<std::size_t>(std::ranges::count(text, '\n')) + 1;
+                auto const nl = text.rfind('\n');
+                auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
+
+                return pane->setpos({line, end - lineStart + 1, end});
+            }
+
+            auto moveLeft() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                if (pos.col > 1) {
+                    return pane->setpos({pos.line, pos.col - 1, pos.off - 1});
+                }
+
+                return std::nullopt;
+            }
+
+            auto moveRight() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+
+                if (!maybeBuf) {
+                    return std::nullopt;
+                }
+
+                auto const next = maybeBuf.value()->get(pos.off);
+                if (next
+                    && next.value() != '\r'
+                    && next.value() != '\n'
+                    && next.value() != '\0'
+                    && next.value() != core::input::ETX) {
+                    return pane->setpos({pos.line, pos.col + 1, pos.off + 1});
+                }
+
+                return std::nullopt;
+            }
+
+            auto moveUp() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                if (pos.line <= 1) {
+                    return std::nullopt;
+                }
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return std::nullopt;
+                }
+
+                auto const text = maybeBuf.value()->view();
+                auto const lineStart = pos.off - (pos.col - 1);
+                if (lineStart < 1) {
+                    return std::nullopt;
+                }
+
+                auto const nl = text.substr(0, lineStart - 1).rfind('\n');
+                auto const prevStart = (nl == std::string_view::npos) ? 0 : nl + 1;
+                auto const crlf = lineStart >= 2 && text[lineStart - 2] == '\r';
+                auto const prevEnd = lineStart - 1 - (crlf ? 1 : 0);
+                auto const len = prevEnd - prevStart;
+                auto const maxIdx = len > 0 ? len - 1 : 0;
+                auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
+
+                return pane->setpos({pos.line - 1, idx + 1, prevStart + idx});
+            }
+
+            auto moveDown() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return std::nullopt;
+                }
+
+                auto const text = maybeBuf.value()->view();
+                auto const nl = text.find('\n', pos.off);
+                if (nl == std::string_view::npos) {
+                    return std::nullopt;
+                }
+
+                auto const nextStart = nl + 1;
+                auto const terminators = std::string_view{"\r\n\0\x03", 4};
+                auto nextEnd = text.find_first_of(terminators, nextStart);
+                if (nextEnd == std::string_view::npos) {
+                    nextEnd = text.size();
+                }
+
+                auto const len = nextEnd - nextStart;
+                auto const maxIdx = len > 0 ? len - 1 : 0;
+                auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
+
+                return pane->setpos({pos.line + 1, idx + 1, nextStart + idx});
             }
     };
 }

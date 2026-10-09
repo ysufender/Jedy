@@ -49,6 +49,18 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
     }
     buffman.get(file).value()->assign(text);
 
+    res = buffman.buffer("<command_buffer>", 256);
+    if (res) {
+        std::println("Error: Failed to create command buffer {}.", res.value());
+        return 1;
+    }
+
+    res = buffman.buffer("<copy>", 256);
+    if (res) {
+        std::println("Error: Failed to create copy buffer {}.", res.value());
+        return 1;
+    }
+
     tui::window::Window window { buffman, std::make_unique<tui::input::Input>() };
     res = window.addPane(file);
     if (res) {
