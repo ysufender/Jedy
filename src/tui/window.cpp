@@ -13,6 +13,19 @@ import core.buffer;
 import core.rawmode;
 import core.input;
 
+auto nthOccurrence(std::string_view const text, char const target, std::size_t const n) -> std::size_t {
+    std::size_t idx = 0;
+    std::size_t from = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        idx = text.find(target, from);
+        if (idx == std::string_view::npos) {
+            return std::string_view::npos;
+        }
+        from = idx + 1;
+    }
+    return idx;
+}
+
 namespace tui::window {
     enum class Mode {
         Navigation,
@@ -46,7 +59,20 @@ namespace tui::window {
                     return "Failed to get current buffer.";
                 }
 
-                context.element = ftxui::paragraph(found.value()->view());
+                auto const half = static_cast<std::size_t>(std::max((context.screen.dimy() - 2) / 2, 0));
+                auto const topLine = this->pos.line > half ? this->pos.line - half : 1;
+                auto const text = found.value()->view();
+
+                std::size_t start = 0;
+                if (topLine > 1) {
+                    auto const nl = nthOccurrence(text, '\n', topLine - 1);
+                    if (nl == std::string_view::npos) {
+                        return "Cursor line is out of range.";
+                    }
+                    start = nl + 1;
+                }
+
+                context.element = ftxui::paragraph(text.substr(start));
 
                 return std::nullopt;
             }
@@ -400,7 +426,9 @@ command:
 
                 ftxui::Render(this->screen, body);
                 auto const pos = this->panes.at(this->active)->getpos();
-                this->screen.CellAt(pos.col - 1, pos.line - 1).inverted = true;
+                auto const half = static_cast<std::size_t>(std::max((this->screen.dimy() - 2) / 2, 0));
+                auto const topLine = pos.line > half ? pos.line - half : 1;
+                this->screen.CellAt(pos.col - 1, pos.line - topLine).inverted = true;
                 std::cout << "\x1b[H";
                 std::cout << screen.ToString();
                 std::cout << std::flush;
