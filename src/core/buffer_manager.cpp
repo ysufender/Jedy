@@ -36,8 +36,20 @@ namespace core::buffer {
                     return std::make_optional(&this->bufferMap.at(name));
                 }
 
-                std::println("Error: No buffer with name {}", name);
                 return std::nullopt;
+            }
+
+            auto flush(std::string_view const name) -> std::optional<std::string_view> {
+                if (auto const maybe = this->get(name)) {
+                    auto const buffer = maybe.value();
+                    std::ofstream out { name.data() };
+                    out << buffer->view();
+                    out.flush();
+                    out.close();
+                    return std::nullopt;
+                }
+
+                return "No buffer found with given name";
             }
     };
 }

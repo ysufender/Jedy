@@ -378,6 +378,17 @@ command:
                         return commandBuffer->remove(commandBuffer->view().size() - 1);
                     }
                 }
+                else if (c == core::input::CR || c == core::input::LF) {
+                    commandBuffer->view().remove_prefix(12);
+
+                    if (commandBuffer->view() == "w") {
+                        this->mode = Mode::Navigation;
+                        return this->manager.flush(this->panes.at(this->active)->getname());
+                    }
+                    else {
+                        return "Unknown command";
+                    }
+                }
                 else if (!std::iscntrl(c)) {
                     commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
                 }
@@ -385,19 +396,21 @@ command:
             }
 
             auto draw() -> std::optional<std::string_view> override {
-                if (this->panes.empty()) {
-                    return "No panes to draw.";
-                }
+                std::optional<std::string_view> res = std::nullopt;
 
                 this->screen = ftxui::Screen::Create(ftxui::Dimension::Full());
-
                 WindowContext context {
                     .manager = this->manager,
                     .screen = this->screen,
                     .element = ftxui::text("No Buffer"),
                 };
 
-                auto const res = this->panes.at(this->active)->draw(&context);
+                if (this->panes.empty()) {
+                    res = "No panes to draw.";
+                }
+                else {
+                    res = this->panes.at(this->active)->draw(&context);
+                }
 
                 auto const cmdBuf = this->manager.get("<command_buffer>").value()->view();
 
@@ -406,7 +419,7 @@ command:
                         ftxui::flex(context.element),
                         ftxui::bgcolor(
                             res ? ftxui::Color::Red : ftxui::Color(ftxui::Color::Palette1::Default),
-                            ftxui::text(cmdBuf)
+                            ftxui::text(res ? res.value() : cmdBuf)
                         ),
                         ftxui::color(
                             ftxui::Color::Black,
