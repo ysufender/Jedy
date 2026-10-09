@@ -275,11 +275,26 @@ navigation:
                 }
                 else if (c == core::input::LBracket) {
                     auto& pane = this->panes.at(this->active);
-
                     pane->setpos({1, 1, 0});
                 }
                 else if (c == core::input::RBracket) {
+                    auto& pane = this->panes.at(this->active);
 
+                    auto const maybeBuf = this->manager.get(pane->getname());
+                    if (!maybeBuf) {
+                        return "Failed to get buffer";
+                    }
+
+                    auto const view = maybeBuf.value()->view();
+                    auto const terminators = std::string_view{"\0\x03", 2};
+                    auto const end = std::min(view.find_first_of(terminators), view.size());
+                    auto const text = view.substr(0, end);
+
+                    auto const line = static_cast<std::size_t>(std::ranges::count(text, '\n')) + 1;
+                    auto const nl = text.rfind('\n');
+                    auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
+
+                    return pane->setpos({line, end - lineStart + 1, end});
                 }
                 else if (c == core::input::a) {
                     this->mode = Mode::Input;
@@ -291,7 +306,7 @@ navigation:
                     auto const maybeBuf = this->manager.get(pane->getname());
 
                     if (!maybeBuf) {
-                        return std::nullopt;
+                        return "Failed to get buffer";
                     }
 
                     auto const next = maybeBuf.value()->get(pos.off);
