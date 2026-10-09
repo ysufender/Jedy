@@ -26,6 +26,14 @@ auto nthOccurrence(std::string_view const text, char const target, std::size_t c
     return idx;
 }
 
+auto computeTopLine(std::string_view const text, std::size_t const line, int const dimy) -> std::size_t {
+    auto const ymax = static_cast<std::size_t>(std::max(dimy - 2, 0));
+    auto const half = ymax / 2;
+    auto const total = static_cast<std::size_t>(std::ranges::count(text, '\n')) + 1;
+    auto const maxTop = total > ymax ? total - ymax + 1 : 1;
+    return std::min(line > half ? line - half : 1, maxTop);
+}
+
 namespace tui::window {
     enum class Mode {
         Navigation,
@@ -57,9 +65,10 @@ namespace tui::window {
                     return "Failed to get current buffer.";
                 }
 
-                auto const half = static_cast<std::size_t>(std::max((context.screen.dimy() - 2) / 2, 0));
-                auto const topLine = this->pos.line > half ? this->pos.line - half : 1;
                 auto text = found.value()->view();
+
+                auto const topLine = computeTopLine(text, this->pos.line, context.screen.dimy());
+                auto const ymax = static_cast<std::size_t>(std::max(context.screen.dimy() - 2, 0));
 
                 std::size_t start = 0;
                 if (topLine > 1) {
@@ -71,32 +80,24 @@ namespace tui::window {
                 }
                 text.remove_prefix(start);
 
-                auto const ymax = context.screen.dimy() - 2;
-                std::stringstream ss;
                 std::vector<ftxui::Element> vec;
                 vec.reserve(ymax);
+                vec.reserve(ymax);
 
-                for (int i = 1; i <= ymax; i++) {
-                    ss.str("");
-                    auto const nstr = std::to_string(i + topLine - 1);
-
-                    for (unsigned int j = 0; j < (5 - nstr.size()); j++) {
-                        ss << ' ';
+                for (unsigned int i = 0; i < ymax; ++i) {
+                    auto const nl = text.find('\n');
+                    auto line = text.substr(0, nl);
+                    if (!line.empty() && line.back() == '\r') {
+                        line.remove_suffix(1);
                     }
-                    ss << nstr << ": ";
 
-                    auto const nl = text.find("\n");
-                    if (nl == std::string::npos) {
-                        vec.emplace_back(ftxui::text(text));
+                    vec.emplace_back(ftxui::text(std::format("{:>5}: {}", topLine + i, line)));
+
+                    if (nl == std::string_view::npos) {
                         break;
                     }
-                    else {
-                        ss << text.substr(0, nl + 1);
-                        vec.emplace_back(ftxui::text(ss.str()));
-                        text.remove_prefix(nl + 1);
-                    }
+                    text.remove_prefix(nl + 1);
                 }
-
                 context.element = ftxui::vbox(vec);
 
                 return std::nullopt;
@@ -480,10 +481,12 @@ command:
                 );
 
                 ftxui::Render(this->screen, body);
-                auto const pos = this->panes.at(this->active)->getpos();
-                auto const half = static_cast<std::size_t>(std::max((this->screen.dimy() - 2) / 2, 0));
-                auto const topLine = pos.line > half ? pos.line - half : 1;
-                this->screen.CellAt(pos.col - 1 + 7, pos.line - topLine).inverted = true;
+                auto const& activePane = this->panes.at(this->active);
+                auto const pos = activePane->getpos();
+                if (auto const buf = this->manager.get(activePane->getname())) {
+                    auto const topLine = computeTopLine(buf.value()->view(), pos.line, this->screen.dimy());
+                    this->screen.CellAt(static_cast<int>(pos.col) + 6, static_cast<int>(pos.line - topLine)).inverted = true;
+                }
                 std::cout << "\x1b[H";
                 std::cout << screen.ToString();
                 std::cout << std::flush;
