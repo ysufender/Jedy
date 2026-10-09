@@ -30,14 +30,12 @@ namespace tui::window {
     enum class Mode {
         Navigation,
         Input,
-        Selection,
         Command,
     };
 
     constexpr std::string_view ModeStr[] = {
         "Navigation",
         "Input",
-        "Selection",
     };
 
     struct WindowContext {
@@ -61,7 +59,7 @@ namespace tui::window {
 
                 auto const half = static_cast<std::size_t>(std::max((context.screen.dimy() - 2) / 2, 0));
                 auto const topLine = this->pos.line > half ? this->pos.line - half : 1;
-                auto const text = found.value()->view();
+                auto text = found.value()->view();
 
                 std::size_t start = 0;
                 if (topLine > 1) {
@@ -71,8 +69,35 @@ namespace tui::window {
                     }
                     start = nl + 1;
                 }
+                text.remove_prefix(start);
 
-                context.element = ftxui::paragraph(text.substr(start));
+                auto const ymax = context.screen.dimy() - 2;
+                std::stringstream ss;
+                std::vector<ftxui::Element> vec;
+                vec.reserve(ymax);
+
+                for (int i = 1; i <= ymax; i++) {
+                    ss.str("");
+                    auto const nstr = std::to_string(i + topLine - 1);
+
+                    for (unsigned int j = 0; j < (5 - nstr.size()); j++) {
+                        ss << ' ';
+                    }
+                    ss << nstr << ": ";
+
+                    auto const nl = text.find("\n");
+                    if (nl == std::string::npos) {
+                        vec.emplace_back(ftxui::text(text));
+                        break;
+                    }
+                    else {
+                        ss << text.substr(0, nl + 1);
+                        vec.emplace_back(ftxui::text(ss.str()));
+                        text.remove_prefix(nl + 1);
+                    }
+                }
+
+                context.element = ftxui::vbox(vec);
 
                 return std::nullopt;
             }
@@ -93,6 +118,8 @@ namespace tui::window {
 
         public:
             static constexpr std::size_t DefaultCommandBufferSize = 255;
+
+            std::optional<std::string_view> errBuf;
 
             Window(core::buffer::BufferManager& manager,
                    std::unique_ptr<core::input::Input>&& input)
@@ -127,13 +154,9 @@ namespace tui::window {
 
                 auto commandBuffer = this->manager.get("<command_buffer>").value();
 
-                if (c == core::input::ETX) {
-                    this->close();
-                }
-                else switch (this->mode) {
+                switch (this->mode) {
                     case Mode::Navigation: goto navigation;
                     case Mode::Input: goto input;
-                    case Mode::Selection: goto selection;
                     case Mode::Command: goto command;
                 }
 
@@ -249,6 +272,14 @@ navigation:
                     this->mode = Mode::Input;
                     commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
+                else if (c == core::input::LBracket) {
+                    auto& pane = this->panes.at(this->active);
+
+                    pane->setpos({1, 1, 0});
+                }
+                else if (c == core::input::RBracket) {
+
+                }
                 else if (c == core::input::a) {
                     this->mode = Mode::Input;
                     commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
@@ -273,7 +304,7 @@ navigation:
                 }
                 else if (c == core::input::Colon) {
                     this->mode = Mode::Command;
-                    commandBuffer->assign("Command >>> ");
+                    commandBuffer->assign(":");
                 }
                 else if (c == core::input::h) {
                     auto& pane = this->panes.at(this->active);
@@ -361,32 +392,43 @@ navigation:
                 }
                 return std::nullopt;
 
-selection:
-                if (c == core::input::Escape) {
-                    this->mode = Mode::Navigation;
-                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
-                }
-                return std::nullopt;
-
 command:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
                     commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
                 else if (c == core::input::Backspace) {
-                    if (commandBuffer->view().size() > 12) {
+                    if (commandBuffer->view().size() > 1) {
                         return commandBuffer->remove(commandBuffer->view().size() - 1);
                     }
                 }
                 else if (c == core::input::CR || c == core::input::LF) {
-                    commandBuffer->view().remove_prefix(12);
+                    std::string const cmd{commandBuffer->view().substr(1)};
 
-                    if (commandBuffer->view() == "w") {
-                        this->mode = Mode::Navigation;
-                        return this->manager.flush(this->panes.at(this->active)->getname());
-                    }
-                    else {
-                        return "Unknown command";
+                    this->mode = Mode::Navigation;
+                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
+                    this->errBuf = "Ok";
+
+                    for (char const ch : cmd) {
+                        switch (ch) {
+                            case 'w': {
+                                auto const res = this->manager.flush(this->panes.at(this->active)->getname());
+                                if (res) {
+                                    this->errBuf = res;
+                                    return std::nullopt;
+                                }
+                                break;
+                            }
+
+                            case 'q': {
+                                this->close();
+                                break;
+                            }
+
+                            default: {
+                                return "Unknown command";
+                            }
+                        }
                     }
                 }
                 else if (!std::iscntrl(c)) {
@@ -417,9 +459,9 @@ command:
                 auto const body = ftxui::flex(
                     ftxui::vbox(
                         ftxui::flex(context.element),
-                        ftxui::bgcolor(
-                            res ? ftxui::Color::Red : ftxui::Color(ftxui::Color::Palette1::Default),
-                            ftxui::text(res ? res.value() : cmdBuf)
+                        ftxui::hbox(
+                            ftxui::text(cmdBuf),
+                            ftxui::flex(ftxui::align_right(ftxui::text(res.value_or(this->errBuf.value_or("Ok")))))
                         ),
                         ftxui::color(
                             ftxui::Color::Black,
@@ -441,7 +483,7 @@ command:
                 auto const pos = this->panes.at(this->active)->getpos();
                 auto const half = static_cast<std::size_t>(std::max((this->screen.dimy() - 2) / 2, 0));
                 auto const topLine = pos.line > half ? pos.line - half : 1;
-                this->screen.CellAt(pos.col - 1, pos.line - topLine).inverted = true;
+                this->screen.CellAt(pos.col - 1 + 7, pos.line - topLine).inverted = true;
                 std::cout << "\x1b[H";
                 std::cout << screen.ToString();
                 std::cout << std::flush;

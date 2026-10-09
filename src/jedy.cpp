@@ -57,7 +57,8 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
     }
 
     do {
-        window.process();
+        auto const res = window.process();
+        window.errBuf = res ? res : window.errBuf;
         window.draw();
     } while (!window.shouldClose());
 
