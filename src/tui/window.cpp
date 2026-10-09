@@ -125,6 +125,20 @@ input:
 
                     auto const pos = pane->getpos();
                     if (pos.col <= 1) {
+                        if (pos.line > 1 && pos.off >= 2) {
+                            auto res = found.value()->remove(pos.off - 1);
+                            if (res) { return res; }
+                            res = found.value()->remove(pos.off - 2);
+                            if (res) { return res; }
+
+                            auto const end = pos.off - 2;
+                            auto const text = found.value()->view();
+                            auto const nl = text.substr(0, end).rfind('\n');
+                            auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
+                            auto const col = end - lineStart + 1;
+
+                            return pane->setpos({pos.line - 1, col, end});
+                        }
                         return std::nullopt;
                     }
 
@@ -165,6 +179,25 @@ input:
                     auto const pos = pane->getpos();
                     return pane->setpos({pos.line, pos.col + 1, pos.off + 1});
                 }
+                else if (c == core::input::CR || c == core::input::LF) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const found = this->manager.get(pane->getname());
+                    if (!found) {
+                        return "Failed to get current buffer.";
+                    }
+
+                    auto res = found.value()->append(pane->getpos().off, '\r');
+                    if (res) {
+                        return res;
+                    }
+                    res = found.value()->append(pane->getpos().off, '\n');
+                    if (res) {
+                        return res;
+                    }
+
+                    auto const pos = pane->getpos();
+                    return pane->setpos({pos.line + 1, 1, pos.off + 2});
+                }
                 return std::nullopt;
 
 navigation:
@@ -192,7 +225,7 @@ navigation:
                 }
                 else if (c == core::input::Colon) {
                     this->mode = Mode::Command;
-                    commandBuffer->assign("");
+                    commandBuffer->assign("Command >>> ");
                 }
                 else if (c == core::input::h) {
                     auto& pane = this->panes.at(this->active);
@@ -232,10 +265,12 @@ command:
                     commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
                 else if (c == core::input::Backspace) {
-                    return commandBuffer->remove(commandBuffer->view().size() - 1);
+                    if (commandBuffer->view().size() > 12) {
+                        return commandBuffer->remove(commandBuffer->view().size() - 1);
+                    }
                 }
                 else if (!std::iscntrl(c)) {
-                    commandBuffer->append(commandBuffer->view().size() - 1, static_cast<char>(c));
+                    commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
                 }
                 return std::nullopt;
             }

@@ -17,13 +17,22 @@ local sources = {
 function src.build(settings, project)
     local src_step = settings.efile.Step
         .init("src")
-        :dependOnStep("setup")
-        :dependOnFiles(sources)
+
+    local compiles = {}
 
     local link = settings.ld..settings.ldflags
 
     for _, source in ipairs(sources) do
-        src_step:action(util.ccxx(settings, source))
+        table.insert(compiles, source..".o")
+        local action = util.ccxx(settings, source)
+
+        project:step(settings.efile.Step
+            .init(source..".o")
+            :dependOnFile(source)
+            :dependOnStep("setup")
+            :dependOnFile(prefix.."build.lua")
+            :action(action))
+
         link = link..util.obj(source).." "
     end
 
@@ -38,6 +47,7 @@ function src.build(settings, project)
     end
 
     src_step:action(link.." -o build/jedy")
+    src_step:dependOnSteps(compiles)
     project:step(src_step)
     return src_step.name
 end

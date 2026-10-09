@@ -13,16 +13,26 @@ local sources = {
 function core.build(settings, project)
     local core_step = settings.efile.Step
         .init("tui")
-        :dependOnStep("setup")
-        :dependOnFiles(sources)
+
+    local compiles = {}
 
     local link = settings.ld..settings.ldflags
     for _, source in ipairs(sources) do
-        core_step:action(util.ccxx(settings, source))
+        table.insert(compiles, source..".o")
+        local action = util.ccxx(settings, source)
+
+        project:step(settings.efile.Step
+            .init(source..".o")
+            :dependOnFile(source)
+            :dependOnStep("setup")
+            :dependOnFile(prefix.."build.lua")
+            :action(action))
+
         link = link..util.obj(source).." "
     end
 
     core_step:action(link.." -r -o "..util.obj(prefix:match("(.*)/")))
+    core_step:dependOnSteps(compiles)
     project:step(core_step)
     return core_step.name
 end
