@@ -4,52 +4,52 @@ import std;
 
 import core.buffer;
 
+struct StringHash {
+    using is_transparent = void;
+
+    auto operator()(std::string_view const s) const noexcept -> std::size_t {
+        return std::hash<std::string_view>{}(s);
+    }
+};
+
 namespace core::buffer {
     export struct BufferManager {
         private:
-            std::unordered_map<std::string_view, buffer::Buffer> bufferMap;
+            std::unordered_map<std::string, buffer::Buffer, StringHash, std::equal_to<>> bufferMap;
 
         public:
             BufferManager() : bufferMap() { }
 
             auto buffer(std::string_view const name, std::size_t const bufSize) -> std::optional<std::string_view> {
                 auto buf = buffer::Buffer::create(bufSize);
-
                 if (!buf) {
-                    return std::make_optional("Failed to create buffer.");
+                    return "Failed to create buffer.";
                 }
 
-                auto const [_, append] = this->bufferMap.try_emplace(name.data(), std::move(buf.value()));
-
-                std::println("Log: Adding buffer {}", name);
-
-                if (!append) {
-                    return std::make_optional("A buffer with the same name already exists.");
+                auto const [_, inserted] = this->bufferMap.try_emplace(std::string{name}, std::move(buf.value()));
+                if (!inserted) {
+                    return "A buffer with the same name already exists.";
                 }
-                else {
-                    return std::nullopt;
-                }
-            }
-
-            inline auto get(std::string_view const name) -> std::optional<Buffer*> {
-                if (this->bufferMap.contains(name)) {
-                    return std::make_optional(&this->bufferMap.at(name));
-                }
-
                 return std::nullopt;
             }
 
-            auto flush(std::string_view const name) -> std::optional<std::string_view> {
-                if (auto const maybe = this->get(name)) {
-                    auto const buffer = maybe.value();
-                    std::ofstream out { name.data() };
-                    out << buffer->view();
-                    out.flush();
-                    out.close();
+            inline auto get(std::string_view const name) -> std::optional<Buffer*> {
+                auto const it = this->bufferMap.find(name);
+                if (it == this->bufferMap.end()) {
                     return std::nullopt;
                 }
+                return &it->second;
+            }
 
-                return "No buffer found with given name";
+            auto flush(std::string_view const name) -> std::optional<std::string_view> {
+                auto const maybe = this->get(name);
+                if (!maybe) {
+                    return "No buffer found with given name";
+                }
+
+                std::ofstream out{std::string{name}};
+                out << maybe.value()->view();
+                return std::nullopt;
             }
     };
 }
