@@ -154,6 +154,11 @@ namespace tui::window {
                   cmdBuf("<command_buffer>"),
                   selectionStart(1, 1, 0) { }
 
+            auto removePane(unsigned int const pane) -> std::optional<std::string_view> override {
+                this->panes.erase(this->panes.begin() + pane);
+                return std::nullopt;
+            }
+
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
                     this->panes.emplace_back(std::make_unique<Pane>(buffer));
@@ -463,6 +468,59 @@ command:
                                 break;
                             }
 
+                            case 'k': {
+                                cmd = {};
+
+                                auto const bufName = this->panes.at(this->active)->getname();
+                                auto res = this->manager.remove(bufName);
+                                if (res) {
+                                    this->errBuf = res;
+                                    continue;
+                                }
+
+                                res = this->removePane(this->active);
+                                if (res) {
+                                    this->errBuf = res;
+                                    continue;
+                                }
+
+                                if (this->panes.empty()) {
+                                    this->close();
+                                    continue;
+                                }
+
+                                this->active = std::max(this->active - 1, 0);
+                                continue;
+                            }
+
+                            case 'p': {
+                                cmd.remove_prefix(1);
+                                while (!cmd.empty() && cmd.front() == ' ') {
+                                    cmd.remove_prefix(1);
+                                }
+
+                                if (cmd.empty()) {
+                                    this->errBuf = "Expected pane number";
+                                    continue;
+                                }
+
+                                std::string_view const paneNum { cmd };
+                                cmd = {};
+
+                                int num;
+                                auto const [ptr, ec] = std::from_chars(paneNum.data(), paneNum.data() + paneNum.size(), num);
+                                if (ec != std::errc{} || ptr != paneNum.data() + paneNum.size()) {
+                                    this->errBuf = "Invalid format.";
+                                    continue;
+                                }
+
+                                auto const res = this->switchPane(num);
+                                if (res) {
+                                    this->errBuf = res;
+                                }
+                                continue;;
+                            }
+
                             case 'e': {
                                 cmd.remove_prefix(1);
                                 while (!cmd.empty() && cmd.front() == ' ') {
@@ -619,9 +677,7 @@ command:
                     return "No panes to switch.";
                 }
 
-                auto const n = static_cast<std::ptrdiff_t>(this->panes.size());
-                auto const next = (static_cast<std::ptrdiff_t>(this->active) + delta % n + n) % n;
-                this->active = static_cast<std::size_t>(next);
+                this->active = delta;
                 return std::nullopt;
             }
 

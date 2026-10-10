@@ -41,6 +41,15 @@ namespace core::buffer {
                 return &it->second;
             }
 
+            auto remove(std::string_view const name) -> std::optional<std::string_view> {
+                auto const it = this->bufferMap.find(name);
+                if (it == this->bufferMap.end()) {
+                    return "No such buffer.";
+                }
+                this->bufferMap.erase(it);
+                return std::nullopt;
+            }
+
             auto flush(std::string_view const name) -> std::optional<std::string_view> {
                 auto const maybe = this->get(name);
                 if (!maybe) {

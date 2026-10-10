@@ -59,6 +59,7 @@ namespace core::window {
                   input(std::move(input)) { }
 
             virtual auto addPane(std::string_view const) -> std::optional<std::string_view> = 0;
+            virtual auto removePane(unsigned int const) -> std::optional<std::string_view> = 0;
             virtual auto draw() -> std::optional<std::string_view> = 0;
             virtual auto process() -> std::optional<std::string_view> = 0;
             virtual auto switchPane(int const) -> std::optional<std::string_view> = 0;
