@@ -2,8 +2,8 @@ local Efile = require "efile"
 
 ---@class Project.Settings
 local settings = {
-    name     = "jedy",
-    version  = "0.0.1",
+name     = "jedy",
+version  = "0.0.1",
     cc       = "gcc ",
     ccxx     = "g++ ",
     ld       = "g++ ",
