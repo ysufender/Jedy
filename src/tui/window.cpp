@@ -412,6 +412,12 @@ navigation:
                     this->mode = Mode::Search;
                     commandBuffer->assign("/");
                 }
+                else if (c == core::input::RBrace) {
+                    return this->skipBlockForward();
+                }
+                else if (c == core::input::LBrace) {
+                    return this->skipBlockBackward();
+                }
                 else if (c == core::input::O) {
                     auto& pane = this->panes.at(this->active);
                     auto const pos = pane->getpos();
@@ -973,7 +979,7 @@ command:
                 }
 
                 return pane->setpos(positionAt(text, off));
-            }
+            } //end skipForward
 
             auto skipBackward() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1002,7 +1008,7 @@ command:
                 }
 
                 return pane->setpos(positionAt(text, off));
-            }
+            } //end skipBackward
 
             auto skipToBeginning() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1027,7 +1033,7 @@ command:
                 auto const lineStart = (nl == std::string_view::npos) ? 0 : nl + 1;
 
                 return pane->setpos({line, end - lineStart + 1, end});
-            }
+            } //end skipToEnd
 
             auto moveLeft() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1038,7 +1044,7 @@ command:
                 }
 
                 return std::nullopt;
-            }
+            } //end moveLeft
 
             auto moveRight() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1059,7 +1065,7 @@ command:
                 }
 
                 return std::nullopt;
-            }
+            } //end moveRight
 
             auto moveUp() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1088,7 +1094,7 @@ command:
                 auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
 
                 return pane->setpos({pos.line - 1, idx + 1, prevStart + idx});
-            }
+            } //end moveUp
 
             auto moveDown() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1117,7 +1123,7 @@ command:
                 auto const idx = std::min<std::size_t>(pos.col - 1, maxIdx);
 
                 return pane->setpos({pos.line + 1, idx + 1, nextStart + idx});
-            }
+            } //end moveDown
 
             auto copySelection(bool const gostart) -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1137,7 +1143,7 @@ command:
 
                 auto const copyBuf = this->manager.get("<copy>").value();
                 return copyBuf->assign(selected);
-            }
+            } //end copySelection
 
             auto deleteSelection(bool const copy) -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1170,7 +1176,7 @@ command:
                 }
 
                 return std::nullopt;
-            }
+            } //end deleteSelection
 
             auto pasteCopyBuffer() -> std::optional<std::string_view> {
                 auto& pane = this->panes.at(this->active);
@@ -1199,7 +1205,7 @@ command:
                 }
 
                 return std::nullopt;
-            }
+            } //end pasteCopyBuffer
 
             auto search(bool const next) -> std::optional<std::string_view> {
                 auto const commandBuffer = this->manager.get("<command_buffer>").value();
@@ -1247,7 +1253,83 @@ command:
                 }
 
                 return pane->setpos(positionAt(text, match));
-            }
+            } //end search
+
+            auto skipBlockForward() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return "Failed to get buffer";
+                }
+
+                auto const view = maybeBuf.value()->view();
+                auto const terminators = std::string_view{"\0\x03", 2};
+                auto const end = std::min(view.find_first_of(terminators), view.size());
+                auto const text = view.subview(0, end);
+
+                auto const isBlank = [&](std::size_t const s) {
+                    auto const e = std::min(text.find('\n', s), text.size());
+                    return text.subview(s, e - s).find_first_not_of(' ') == std::string_view::npos;
+                };
+
+                auto const nextLine = [&](std::size_t const s) -> std::optional<std::size_t> {
+                    auto const e = text.find('\n', s);
+                    if (e == std::string_view::npos) {
+                        return std::nullopt;
+                    }
+                    return e + 1;
+                };
+
+                std::optional<std::size_t> cur = pos.off - (pos.col - 1);
+                while (cur && isBlank(*cur)) {
+                    cur = nextLine(*cur);
+                }
+                while (cur && !isBlank(*cur)) {
+                    cur = nextLine(*cur);
+                }
+
+                return pane->setpos(positionAt(text, cur.value_or(text.size())));
+            } //end skipBlockForward
+
+            auto skipBlockBackward() -> std::optional<std::string_view> {
+                auto& pane = this->panes.at(this->active);
+                auto const pos = pane->getpos();
+
+                auto const maybeBuf = this->manager.get(pane->getname());
+                if (!maybeBuf) {
+                    return "Failed to get buffer";
+                }
+
+                auto const view = maybeBuf.value()->view();
+                auto const terminators = std::string_view{"\0\x03", 2};
+                auto const end = std::min(view.find_first_of(terminators), view.size());
+                auto const text = view.subview(0, end);
+
+                auto const isBlank = [&](std::size_t const s) {
+                    auto const e = std::min(text.find('\n', s), text.size());
+                    return text.subview(s, e - s).find_first_not_of(' ') == std::string_view::npos;
+                };
+
+                auto const prevLine = [&](std::size_t const s) -> std::optional<std::size_t> {
+                    if (s == 0) {
+                        return std::nullopt;
+                    }
+                    auto const nl = text.subview(0, s - 1).rfind('\n');
+                    return nl == std::string_view::npos ? 0 : nl + 1;
+                };
+
+                std::optional<std::size_t> cur = std::min(pos.off - (pos.col - 1), text.size());
+                while (cur && isBlank(*cur)) {
+                    cur = prevLine(*cur);
+                }
+                while (cur && !isBlank(*cur)) {
+                    cur = prevLine(*cur);
+                }
+
+                return pane->setpos(positionAt(text, cur.value_or(0)));
+            } //end skipBlockBackward
 
             auto shiftSelection(bool const indent) -> std::optional<std::string_view> {
                 constexpr std::size_t Width = 4;
@@ -1333,6 +1415,6 @@ command:
                 auto const view = buffer.value()->view();
                 this->selectionStart = positionAt(view, newStartOff);
                 return pane->setpos(positionAt(view, newCursorOff));
-            }
+            } //end shiftSelection
     };
 }
