@@ -49,6 +49,16 @@ auto lineEnd(std::string_view const text, std::size_t const off) -> std::size_t 
     return std::min(text.find_first_of(terminators, off), text.size());
 }
 
+auto indentAt(std::string_view const text, std::size_t const off) -> std::size_t {
+    auto const start = off - (off > 0 ? [&] {
+        auto const nl = text.subview(0, off).rfind('\n');
+        return nl == std::string_view::npos ? off : off - (nl + 1);
+    }() : 0);
+    auto const end = lineEnd(text, off);
+    auto const line = text.subview(start, end - start);
+    return std::min(line.find_first_not_of(' '), line.size());
+}
+
 auto positionAt(std::string_view const text, std::size_t const off) -> core::Position {
     auto const head = text.subview(0, off);
     auto const line = static_cast<std::size_t>(std::ranges::count(head, '\n')) + 1;
@@ -327,6 +337,21 @@ input:
 
                     return found.value()->remove(pos.off);
                 }
+                else if (c == core::input::HTab) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const found = this->manager.get(pane->getname());
+                    if (!found) {
+                        return "Failed to get current buffer.";
+                    }
+
+                    for (int i = 0; i < 4; i++) {
+                        auto const pos = pane->getpos();
+                        auto res = found.value()->append(pos.off, ' ');
+                        if (res) { return res; }
+                        res = pane->setpos({pos.line, pos.col + 1, pos.off + 1});
+                        if (res) { return res; }
+                    }
+                }
                 else if (!std::iscntrl(c)) {
                     auto& pane = this->panes.at(this->active);
                     auto const found = this->manager.get(pane->getname());
@@ -344,18 +369,28 @@ input:
                 }
                 else if (c == core::input::CR || c == core::input::LF) {
                     auto& pane = this->panes.at(this->active);
-                    auto const found = this->manager.get(pane->getname());
-                    if (!found) {
-                        return "Failed to get current buffer.";
-                    }
-
+                        auto const found = this->manager.get(pane->getname());
+                        if (!found) {
+                            return "Failed to get current buffer.";
+                            }
+                    
                     auto const pos = pane->getpos();
-                    auto const res = found.value()->append(pos.off, '\n');
-                    if (res) {
-                        return res;
-                    }
-
-                    return pane->setpos({pos.line + 1, 1, pos.off + 1});
+                        auto res = found.value()->append(pos.off, '\n');
+                        if (res) {
+                            return res;
+                            }
+                    
+                    auto const lineStart = found.value()->view().subview(pos.off - pos.col + 1);
+                        auto const indent = lineStart.find_first_not_of(' ');
+                    
+                    for (std::size_t i = 0; i < indent; i++) {
+                            res = found.value()->append(pos.off + 1 + i, ' ');
+                                if (res) {
+                                    return res;
+                                    }
+                            }
+                    
+                    return pane->setpos({pos.line + 1, indent + 1, pos.off + 1 + indent});
                 }
                 return std::nullopt;
 
@@ -384,11 +419,29 @@ navigation:
                     if (!buffer) {
                         return "Failed to get current buffer.";
                     }
-                    
-                    auto res = buffer.value()->append(pos.off - pos.col + 1, '\n');
+
+                    auto const lineStart = pos.off - (pos.col - 1);
+                    auto const indent = indentAt(buffer.value()->view(), pos.off);
+
+                    auto res = buffer.value()->append(lineStart, '\n');
                     if (res) {
                         return res;
                     }
+
+                    for (std::size_t i = 0; i < indent; i++) {
+                        res = buffer.value()->append(lineStart + i, ' ');
+                        if (res) {
+                            return res;
+                        }
+                    }
+
+                    res = pane->setpos({pos.line, indent + 1, lineStart + indent});
+                    if (res) {
+                        return res;
+                    }
+
+                    this->mode = Mode::Input;
+                    return commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
                 else if (c == core::input::o) {
                     auto& pane = this->panes.at(this->active);
@@ -403,13 +456,21 @@ navigation:
                     auto const hasNewline = end < view.size() && view[end] == '\n';
                     auto const insertAt = hasNewline ? end + 1 : end;
                     auto const nextStart = hasNewline ? insertAt : insertAt + 1;
+                    auto const indent = indentAt(view, pos.off);
 
                     auto res = buffer.value()->append(insertAt, '\n');
                     if (res) {
                         return res;
                     }
 
-                    res = pane->setpos({pos.line + 1, 1, nextStart});
+                    for (std::size_t i = 0; i < indent; i++) {
+                        res = buffer.value()->append(nextStart + i, ' ');
+                        if (res) {
+                            return res;
+                        }
+                    }
+
+                    res = pane->setpos({pos.line + 1, indent + 1, nextStart + indent});
                     if (res) {
                         return res;
                     }
@@ -556,46 +617,16 @@ search:
                     return std::nullopt;
                 }
 
+                if (c == core::input::HTab) {
+                    return this->search(true);
+                }
+
                 if (std::iscntrl(c)) {
                     return std::nullopt;
                 }
 
-                {
-                    commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
-
-                    auto const query = commandBuffer->view().substr(1);
-                    auto const direction = query.front();
-                    if (direction != 'f' && direction != 'b') {
-                        return "Search starts with f or b.";
-                    }
-
-                    auto const pattern = query.substr(1);
-                    if (pattern.empty()) {
-                        return std::nullopt;
-                    }
-
-                    auto& pane = this->panes.at(this->active);
-                    auto const found = this->manager.get(pane->getname());
-                    if (!found) {
-                        return "Failed to get current buffer.";
-                    }
-
-                    auto const view = found.value()->view();
-                    auto const terminators = std::string_view{"\0\x03", 2};
-                    auto const end = std::min(view.find_first_of(terminators), view.size());
-                    auto const text = view.subview(0, end);
-
-                    auto const pos = pane->getpos().off;
-                    auto const match = direction == 'f'
-                        ? text.find(pattern, pos)
-                        : text.rfind(pattern, pos);
-
-                    if (match == std::string_view::npos) {
-                        return "Not found";
-                    }
-
-                    return pane->setpos(positionAt(text, match));
-                }
+                commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
+                return this->search(false);
 
 command:
                 if (c == core::input::Escape) {
@@ -606,7 +637,7 @@ command:
                     if (commandBuffer->view().size() > 1) {
                         return commandBuffer->remove(commandBuffer->view().size() - 1);
                     }
-                }
+                } 
                 else if (c == core::input::CR || c == core::input::LF) {
                     auto cmd = commandBuffer->view().substr(1);
                     std::optional<std::string_view> result = std::nullopt;
@@ -788,6 +819,11 @@ command:
                 }
                 else if (!std::iscntrl(c)) {
                     commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
+                }
+                else if (c == core::input::HTab) {
+                    for (int i = 0; i < 4; i++) {
+                        commandBuffer->append(commandBuffer->view().size(), ' ');
+                    }
                 }
                 return std::nullopt;
             }
@@ -1163,6 +1199,54 @@ command:
                 }
 
                 return std::nullopt;
+            }
+
+            auto search(bool const next) -> std::optional<std::string_view> {
+                auto const commandBuffer = this->manager.get("<command_buffer>").value();
+                auto const query = commandBuffer->view().substr(1);
+                if (query.empty()) {
+                    return std::nullopt;
+                }
+
+                auto const direction = query.front();
+                if (direction != 'f' && direction != 'b') {
+                    return "Search starts with f or b.";
+                }
+
+                auto const pattern = query.substr(1);
+                if (pattern.empty()) {
+                    return std::nullopt;
+                }
+
+                auto& pane = this->panes.at(this->active);
+                auto const found = this->manager.get(pane->getname());
+                if (!found) {
+                    return "Failed to get current buffer.";
+                }
+
+                auto const view = found.value()->view();
+                auto const terminators = std::string_view{"\0\x03", 2};
+                auto const end = std::min(view.find_first_of(terminators), view.size());
+                auto const text = view.subview(0, end);
+
+                auto const pos = pane->getpos().off;
+                std::size_t match = std::string_view::npos;
+
+                if (direction == 'f') {
+                    match = text.find(pattern, next ? pos + 1 : pos);
+                }
+                else if (!next) {
+                    match = text.rfind(pattern, pos);
+                }
+                else if (pos > 0) {
+                    match = text.rfind(pattern, pos - 1);
+                }
+
+                if (match == std::string_view::npos) {
+                    return "Not found";
+                }
+
+                return pane->setpos(positionAt(text, match));
             }
 
             auto shiftSelection(bool const indent) -> std::optional<std::string_view> {
