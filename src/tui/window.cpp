@@ -268,6 +268,12 @@ selection:
                 else if (c == core::input::RBracket) {
                     return this->skipToEnd();
                 }
+                else if (c == core::input::LBrace) {
+                    return this->skipBlockBackward();
+                }
+                else if (c == core::input::RBrace) {
+                    return this->skipBlockForward();
+                
                 else if (c == core::input::h) {
                     return this->moveLeft();
                 }
