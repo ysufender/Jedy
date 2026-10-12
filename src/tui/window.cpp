@@ -35,12 +35,8 @@ auto computeTopLine(std::string_view const text, std::size_t const line, int con
 }
 
 auto charClass(char const c) -> int {
-    if (std::isspace(static_cast<unsigned char>(c))) {
-        return 0;
-    }
-    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') {
-        return 1;
-    }
+    if (std::isspace(static_cast<unsigned char>(c))) { return 0; }
+    if (std::isalnum(static_cast<unsigned char>(c)) || c == '_') { return 1; }
     return 2;
 }
 
@@ -536,6 +532,26 @@ navigation:
                     }
 
                     return this->deleteSelection(true);
+                }
+                else if (c == core::input::J) {
+                    auto& pane = this->panes.at(this->active);
+                    auto const buffer = this->manager.get(pane->getname());
+                    if (!buffer) { return "Failed to get current buffer."; }
+                    
+                    auto const pos = pane->getpos();
+                    auto const nl = buffer.value()->view().subview(pos.off).find("\n");
+                    if (nl != std::string::npos) {
+                        auto res = buffer.value()->remove(nl + pos.off);
+                        if (res) { return res; }
+                        
+                        while (buffer.value()->view()[pos.off + nl] == ' ') {
+                            res = buffer.value()->remove(pos.off + nl);
+                            if (res) { return res; }
+                        }
+                        
+                        res = buffer.value()->append(pos.off + nl, ' ');
+                        if (res) { return res; }
+                    }
                 }
                 else if (c == core::input::p) {
                     return this->pasteCopyBuffer();
