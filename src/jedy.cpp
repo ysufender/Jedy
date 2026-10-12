@@ -33,13 +33,6 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
             source.seekg(0, std::ios::beg);
             text = std::string{std::istreambuf_iterator<char>{source}, {}};
         }
-        else {
-            std::ofstream source { file.data() };
-            if (!source.is_open()) {
-                std::println("Error: Failed to open file {}", file);
-                return 1;
-            }
-        }
     }
 
     auto res = buffman.buffer(file, size);
