@@ -120,8 +120,10 @@ namespace tui::window {
                 for (unsigned int i = 0; i < ymax; ++i) {
                     auto const nl = text.find('\n');
                     auto line = text.subview(0, nl);
+                    
+                    auto const marked = std::find_if(this->marks.begin(), this->marks.end(), [&](core::Position const item) -> bool { return item.line == topLine + i; }) != this->marks.end();
 
-                    vec.emplace_back(ftxui::text(std::format("{:>5}| {}", topLine + i, line)));
+                    vec.emplace_back(ftxui::text(std::format("{:>5}|{}{}", topLine + i, marked ? '*' : ' ', line)));
 
                     if (nl == std::string_view::npos) {
                         break;
@@ -136,6 +138,48 @@ namespace tui::window {
             auto setpos(core::Position const p) -> std::optional<std::string_view> override {
                 this->pos = p;
                 return std::nullopt;
+            }
+            
+            auto mark() -> std::optional<std::string_view> override {
+                try {
+                    auto const iter = std::find_if(this->marks.begin(), this->marks.end(), [&](core::Position const item) -> bool { return item.line == this->pos.line; });
+                    if (iter == this->marks.end()) {
+                        this->marks.emplace_back(this->pos);
+                    }
+                    else {
+                        this->marks.erase(iter);
+                    }
+                    
+                    return std::nullopt;
+                }
+                catch (std::exception&) {
+                    return "Failed to mark line";
+                }
+            }
+            
+            auto goMark(bool const backwards) -> std::optional<std::string_view> override {
+                if (this->marks.empty()) {
+                    return "No marks on current buffer.";
+                }
+            
+                if (backwards) {
+                    if (this->lastMark == 0) {
+                        this->lastMark = this->marks.size() - 1;
+                    }
+                    else {
+                        this->lastMark--;
+                    }
+                }
+                else {
+                    if (this->lastMark + 1 >= this->marks.size()) {
+                        this->lastMark = 0;
+                    }
+                    else {
+                        this->lastMark++;
+                    }
+                }
+                
+                return this->setpos(this->marks.at(this->lastMark));
             }
     };
 
@@ -210,7 +254,6 @@ selection:
                 else if (c == core::input::y) {
                     this->mode = Mode::Navigation;
                     commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
-
                     return this->copySelection(true);
                 }
                 else if (c == core::input::RArrow) {
@@ -419,6 +462,15 @@ navigation:
                 }
                 else if (c == core::input::LBrace) {
                     return this->skipBlockBackward();
+                }
+                else if (c == core::input::m) {
+                    return this->panes.at(this->active)->mark();
+                }
+                else if (c == core::input::n) {
+                    return this->panes.at(this->active)->goMark(false);
+                }
+                else if (c == core::input::N) {
+                    return this->panes.at(this->active)->goMark(true);
                 }
                 else if (c == core::input::s) {
                     std::optional<std::string_view> res;
@@ -809,39 +861,24 @@ command:
                                 }
 
                                 if (cmd.empty()) {
-                                    this->errBuf = "Expected a file name";
-                                    continue;
-                                }
-
-                                std::string_view const name{cmd};
-                                cmd = {};
-
-                                if (!this->manager.get(name)) {
-                                    std::ifstream in { std::string{name}, std::ios::binary | std::ios::ate };
-                                    auto const size = in.is_open() ? static_cast<std::size_t>(in.tellg()) : std::size_t{0};
-
-                                    auto res = this->manager.buffer(name, size);
+                                    auto const res = this->reopenFileToBuffer(this->panes.at(this->active)->getname()); 
                                     if (res) {
                                         this->errBuf = res;
                                         continue;
                                     }
+                                }
+                                
+                                std::string_view const name{cmd};
+                                cmd = {};
 
-                                    if (in.is_open()) {
-                                        in.seekg(0);
-                                        auto const target = this->manager.get(name).value();
-
-                                        char ch;
-                                        while (in.get(ch)) {
-                                            res = target->append(target->view().size(), ch);
-                                            if (res) {
-                                                this->errBuf = res;
-                                                break;
-                                            }
-                                        }
-                                        if (res) {
-                                            continue;
-                                        }
+                                if (!this->manager.get(name)) {
+                                    auto const res = this->openFileToBuffer(name);
+                                    if (res) {
+                                        this->errBuf = res;
+                                        continue;
                                     }
+                                }
+                                else {
                                 }
 
                                 auto const res = this->addPane(name);
@@ -1372,6 +1409,63 @@ command:
 
                 return pane->setpos(positionAt(text, cur.value_or(0)));
             } //end skipBlockBackward
+            
+            auto openFileToBuffer(std::string_view const name) -> std::optional<std::string_view> {
+                std::ifstream in { std::string{name}, std::ios::binary | std::ios::ate };
+                auto const size = in.is_open() ? static_cast<std::size_t>(in.tellg()) : std::size_t{0};
+
+                auto res = this->manager.buffer(name, size);
+                if (res) {
+                    return res;
+                }
+
+                if (in.is_open()) {
+                    in.seekg(0);
+                    auto const target = this->manager.get(name).value();
+
+                    char ch;
+                    while (in.get(ch)) {
+                        res = target->append(target->view().size(), ch);
+                        if (res) {
+                            return res;
+                        }
+                    }
+                    if (res) {
+                        return res;
+                    }
+                }
+                else {
+                    return "Failed to open file";
+                }
+                
+                return std::nullopt;
+            } //end openFileToBuffer
+            
+            auto reopenFileToBuffer(std::string_view const name) -> std::optional<std::string_view> {
+                std::ifstream in { std::string{name}, std::ios::binary | std::ios::ate };
+
+                if (in.is_open()) {
+                    in.seekg(0);
+                    auto const target = this->manager.get(name).value();
+
+                    char ch;
+                    std::optional<std::string_view> res { std::nullopt };
+                    while (in.get(ch)) {
+                        res = target->append(target->view().size(), ch);
+                        if (res) {
+                            return res;
+                        }
+                    }
+                    if (res) {
+                        return res;
+                    }
+                }
+                else {
+                    return "Failed to open file";
+                }
+                
+                return std::nullopt;
+            } //end reopenFileToBuffer
 
             auto shiftSelection(bool const indent) -> std::optional<std::string_view> {
                 constexpr std::size_t Width = 4;

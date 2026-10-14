@@ -29,16 +29,21 @@ namespace core::window {
     export class Pane {
         protected:
             std::string activeBuffer;
-            Position pos;
+            std::vector<Position> marks;
+            core::Position pos;
+            std::size_t lastMark;
 
         public:
             Pane(std::string_view const buf)
                 : activeBuffer(buf),
+                  marks(),
                   pos({1, 1, 0}) { }
 
             virtual auto draw(void* const) -> std::optional<std::string_view> { return std::nullopt; }
             virtual auto setpos(core::Position const) -> std::optional<std::string_view> { return std::nullopt; }
-
+            virtual auto mark() -> std::optional<std::string_view> { return std::nullopt; }
+            virtual auto goMark(bool const) -> std::optional<std::string_view> { return std::nullopt; }
+            
             inline auto getpos() -> core::Position { return this->pos; }
             inline auto getname() -> std::string const& { return this->activeBuffer; }
     };
