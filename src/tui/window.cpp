@@ -1,4 +1,4 @@
-module;
+test
 #include <unistd.h>
 
 export module tui.window;
@@ -864,8 +864,8 @@ command:
                                     auto const res = this->reopenFileToBuffer(this->panes.at(this->active)->getname()); 
                                     if (res) {
                                         this->errBuf = res;
-                                        continue;
                                     }
+                                    continue;
                                 }
                                 
                                 std::string_view const name{cmd};
@@ -1443,13 +1443,19 @@ command:
             
             auto reopenFileToBuffer(std::string_view const name) -> std::optional<std::string_view> {
                 std::ifstream in { std::string{name}, std::ios::binary | std::ios::ate };
+                auto const size = in.is_open() ? static_cast<std::size_t>(in.tellg()) : std::size_t{0};
 
                 if (in.is_open()) {
                     in.seekg(0);
+                    auto res = this->manager.remove(name);
+                    if (res) { return res; }
+                    res = this->manager.buffer(name, size);
+                    if (res) { return res; }
                     auto const target = this->manager.get(name).value();
+                    
+                    target->assign("");
 
                     char ch;
-                    std::optional<std::string_view> res { std::nullopt };
                     while (in.get(ch)) {
                         res = target->append(target->view().size(), ch);
                         if (res) {
