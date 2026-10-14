@@ -273,7 +273,7 @@ selection:
                 }
                 else if (c == core::input::RBrace) {
                     return this->skipBlockForward();
-                
+                }
                 else if (c == core::input::h) {
                     return this->moveLeft();
                 }
@@ -419,6 +419,26 @@ navigation:
                 }
                 else if (c == core::input::LBrace) {
                     return this->skipBlockBackward();
+                }
+                else if (c == core::input::s) {
+                    std::optional<std::string_view> res;
+                    if (static_cast<unsigned int>(this->active + 1) >= this->panes.size()) {
+                        res = this->switchPane(0);
+                    }
+                    else {
+                        res = this->switchPane(this->active + 1);
+                    }
+                    return res;
+                }
+                else if (c == core::input::S) {
+                    std::optional<std::string_view> res;
+                    if (this->active - 1 < 0) {
+                        res = this->switchPane(this->panes.size() - 1);
+                    }
+                    else {
+                        res = this->switchPane(this->active - 1);
+                    }
+                    return res;
                 }
                 else if (c == core::input::O) {
                     auto& pane = this->panes.at(this->active);
