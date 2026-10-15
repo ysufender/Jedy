@@ -21,14 +21,17 @@ keybindings: H (left), J (down), K (up), and L (right). These are the main
 navigation keys, with a couple more keybindings to help you move around more
 freely:
 
-- } : skip a block of text forward
-- { : skip a block of text backward
-- ] : skip to the end of the file
-- [ : skip to the start of the file
-- $ : skip to the end of the line
-- 0 : skip to the start of the line
-- w : skip a word forward
-- b : skip a word backward
+- } : Skip a block of text forward
+- { : Skip a block of text backward
+- ] : Skip to the end of the file
+- [ : Skip to the start of the file
+- $ : Skip to the end of the line
+- 0 : Skip to the start of the line
+- w : Skip a word forward
+- b : Skip a word backward
+- m : Mark/Unmark current line
+- n : Jump to next mark
+- N : Jump to previous mark
 
 Through navigation mode you can enter the other modes through the given keybindings:
 
@@ -67,6 +70,7 @@ A couple of commands are available, some of them with the chaining capabilities:
 - l : Skip to line
 - p : Switch to buffer
 - k : Kill the current buffer, any unsaved change is lost
+- e : Open/Reopen file
 
 ## Search Mode
 

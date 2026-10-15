@@ -1,4 +1,4 @@
-test
+module;
 #include <unistd.h>
 
 export module tui.window;
