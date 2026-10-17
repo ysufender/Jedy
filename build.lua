@@ -125,6 +125,15 @@ project
             end
         end)()))
 
+    :step(Efile.Step
+        .init("cole")
+        :action("cole migration/main.cole -I src -I ../Cole/stdlib -o jedy"))
+
+    :step(Efile.Step
+        .init("cole-run")
+        :dependOnStep("cole")
+        :action("build/c/jedy"))
+
 require("src.build").build(settings, project)
 
 print(project:build(arg[1]) or "Success")

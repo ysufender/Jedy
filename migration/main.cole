@@ -1,0 +1,6 @@
+let printf = #(@extern, @variadic) fn (msg: [@c]c_char) -> c_int { };
+
+let main = fn (args: [][]u8) -> i32 {
+    _ = printf("Hello World");
+    return 0;
+};

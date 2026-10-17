@@ -1,0 +1,79 @@
+import std;
+import std::string;
+
+pub let TotalArgs = 2;
+
+pub let Value = union(enum) {
+    Undefined: void,
+    String: mut []u8,
+    Bool: mut bool,
+
+    pub let typestr = fn (val: Value) -> []u8 {
+        return switch val {
+            @String -> "string",
+            @Bool -> "bool",
+            @Undefined -> "undefined",
+        };
+    };
+
+    pub let str = fn (val: Value) -> []u8 {
+        return switch val {
+            @String -> |str| str,
+            @Bool -> |b| if (b) "true" else "false",
+            @Undefined -> "undefined",
+        };
+    };
+};
+
+pub let Args = struct {
+    args: [TotalArgs]Tuple([]u8, Value, []u8),
+    size: u32,
+    _args: [][]u8,
+
+    pub let create = fn (args: [][]u8) -> Args {
+        return (undefined, 0, args);
+    };
+
+    pub let option = fn (self: *mut Args, name: []u8, def: bool, desc: []u8) -> bool {
+        if self.size >= TotalArgs {
+            return false;
+        }
+
+        self.args[self.size] = (name, (@Bool, def), desc);
+        self.size = self.size + 1;
+        return true;
+    };
+
+    pub let param = fn (self: *mut Args, name: []u8, def: []u8, desc: []u8) -> bool {
+        if self.size >= TotalArgs {
+            return false;
+        }
+
+        self.args[self.size] = (name, (@String, def), desc);
+        self.size = self.size + 1;
+        return true;
+    };
+
+    pub let mutableGet = fn (self: *mut Args, name: []u8) -> std::Option(*mut Value) {
+        for self.args, |arg| {
+            if std::string::equals(arg._0, name) {
+                return (@Some, arg);
+            }
+        }
+
+        return (@None, ());
+    };
+
+    pub let get = fn (self: *Args, name: []u8) -> std::Option(*Value) {
+        for self.args, |arg| {
+            if std::string::equals(arg._0, name) {
+                return (@Some, arg);
+            }
+        }
+
+        return (@None, ());
+    };
+
+    pub let parse = fn (self: *mut Args) -> std::Option([]u8) {
+    }
+};
