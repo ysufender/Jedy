@@ -127,7 +127,7 @@ project
 
     :step(Efile.Step
         .init("cole")
-        :action("cole migration/main.cole -I src -I ../Cole/stdlib -o jedy"))
+        :action("cole migration/main.cole -I migration -I ../Cole/stdlib -o jedy"))
 
     :step(Efile.Step
         .init("cole-run")

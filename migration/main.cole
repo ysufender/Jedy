@@ -1,6 +1,9 @@
-let printf = #(@extern, @variadic) fn (msg: [@c]c_char) -> c_int { };
+import std::io::console as Console;
 
-let main = fn (args: [][]u8) -> i32 {
-    _ = printf("Hello World");
+import core::cli;
+
+let main = fn (_args: [][]u8) -> i32 {
+    let args = core::cli::Args::create(_args);
+
     return 0;
 };

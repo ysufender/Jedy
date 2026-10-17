@@ -1,5 +1,6 @@
 import std;
 import std::string;
+import std::io::console as Console;
 
 pub let TotalArgs = 2;
 
@@ -26,7 +27,11 @@ pub let Value = union(enum) {
 };
 
 pub let Args = struct {
-    args: [TotalArgs]Tuple([]u8, Value, []u8),
+    args: [TotalArgs] struct {
+        _0: []u8,
+        _1: Value,
+        _2: []u8,
+    },
     size: u32,
     _args: [][]u8,
 
@@ -64,7 +69,7 @@ pub let Args = struct {
         return (@None, ());
     };
 
-    pub let get = fn (self: *Args, name: []u8) -> std::Option(*Value) {
+    pub let get = fn (self: *mut Args, name: []u8) -> std::Option(*mut Value) {
         for self.args, |arg| {
             if std::string::equals(arg._0, name) {
                 return (@Some, arg);
@@ -75,5 +80,42 @@ pub let Args = struct {
     };
 
     pub let parse = fn (self: *mut Args) -> std::Option([]u8) {
-    }
+        let i: mut u32 = 0;
+        while i < self._args.len {
+            let arg = self._args[i];
+            i = i + 1;
+
+            if arg[0] == '-' {
+                let maybeValueRef = get(self, arg[1..arg.len - 1]);
+
+                switch maybeValueRef {
+                    @Some -> |ref| switch ref.tag {
+                        @String -> {
+                            if i == self._args.len - 1 {
+                                Console::write("Expected a string value after: ");
+                                Console::log(arg);
+                                return (@Some, "<missing argument>");
+                            }
+
+                            maybeValueRef.String = self._args[i];
+                        }
+                        @Bool -> {
+                            maybeValueRef.Bool = true;
+                        }
+                        else -> { }
+                    }
+                    @None -> {
+                        Console::write("Unknown command line argument: ");
+                        Console::log(arg);
+                        return (@Some, "<unknown>");
+                    }
+                }
+            }
+            else {
+                Console::write("Unknown command line argument: ");
+                Console::log(arg);
+                return (@Some, "<unknown>");
+            }
+        }
+    };
 };
