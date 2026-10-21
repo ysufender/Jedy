@@ -27,95 +27,115 @@ pub let Value = union(enum) {
 };
 
 pub let Args = struct {
-    args: [TotalArgs] struct {
-        _0: []u8,
-        _1: Value,
-        _2: []u8,
+    args: mut [TotalArgs] mut struct {
+        name: []u8,
+        value: Value,
+        description: []u8,
     },
-    size: u32,
+    size: mut u32,
     _args: [][]u8,
 
-    pub let create = fn (args: [][]u8) -> Args {
+    pub let create = fn (args: [][]u8) -> mut Args {
         return (undefined, 0, args);
     };
 
     pub let option = fn (self: *mut Args, name: []u8, def: bool, desc: []u8) -> bool {
         if self.size >= TotalArgs {
-            return false;
+            return true;
         }
 
         self.args[self.size] = (name, (@Bool, def), desc);
         self.size = self.size + 1;
-        return true;
+        return false;
     };
 
     pub let param = fn (self: *mut Args, name: []u8, def: []u8, desc: []u8) -> bool {
         if self.size >= TotalArgs {
-            return false;
+            return true;
         }
 
         self.args[self.size] = (name, (@String, def), desc);
         self.size = self.size + 1;
-        return true;
+        return false;
     };
 
     pub let mutableGet = fn (self: *mut Args, name: []u8) -> std::Option(*mut Value) {
-        for self.args, |arg| {
-            if std::string::equals(arg._0, name) {
-                return (@Some, arg);
+        for 0..self.size, |i| {
+            let arg = self.args[i].&;
+            if std::string::equals(arg.name, name) {
+                return (@Some, arg.value.&);
             }
         }
 
         return (@None, ());
     };
 
-    pub let get = fn (self: *mut Args, name: []u8) -> std::Option(*mut Value) {
-        for self.args, |arg| {
-            if std::string::equals(arg._0, name) {
-                return (@Some, arg);
+    pub let get = fn (self: *Args, name: []u8) -> std::Option(*Value) {
+        for 0..self.size, |i| {
+            let arg = self.args[i].&;
+            if std::string::equals(arg.name, name) {
+                return (@Some, arg.value.&);
             }
         }
 
         return (@None, ());
     };
 
-    pub let parse = fn (self: *mut Args) -> std::Option([]u8) {
+    pub let parse = fn (self: *mut Args) -> bool {
         let i: mut u32 = 0;
         while i < self._args.len {
             let arg = self._args[i];
             i = i + 1;
 
             if arg[0] == '-' {
-                let maybeValueRef = get(self, arg[1..arg.len - 1]);
+                let maybeValueRef = mutableGet(self, arg[1..arg.len]);
 
                 switch maybeValueRef {
                     @Some -> |ref| switch ref.tag {
                         @String -> {
-                            if i == self._args.len - 1 {
+                            if i >= self._args.len {
                                 Console::write("Expected a string value after: ");
                                 Console::log(arg);
-                                return (@Some, "<missing argument>");
+                                return true;
                             }
 
-                            maybeValueRef.String = self._args[i];
+                            ref.String = self._args[i];
+                            i = i + 1;
                         }
                         @Bool -> {
-                            maybeValueRef.Bool = true;
+                            ref.Bool = true;
                         }
                         else -> { }
                     }
                     @None -> {
                         Console::write("Unknown command line argument: ");
                         Console::log(arg);
-                        return (@Some, "<unknown>");
+                        return true;
                     }
                 }
             }
             else {
                 Console::write("Unknown command line argument: ");
                 Console::log(arg);
-                return (@Some, "<unknown>");
+                return true;
             }
+        }
+
+        return false;
+    };
+
+    pub let help = fn (self: *Args) -> void {
+        Console::log("Usage:");
+
+        for 0..self.size, |i| {
+            let entry = self.args[i];
+            Console::write("    ");
+            Console::write(entry.name);
+            Console::write(" <default = ");
+            Console::write(Value::str(entry.value));
+            Console::write("> : ");
+            Console::write(entry.description);
+            Console::write("\n");
         }
     };
 };

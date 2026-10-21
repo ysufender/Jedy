@@ -1,9 +1,61 @@
 import std::io::console as Console;
 
 import core::cli;
+import core::buffer;
 
 let main = fn (_args: [][]u8) -> i32 {
-    let args = core::cli::Args::create(_args);
+    let Args = core::cli::Args;
 
+    let args = Args::create(_args);
+
+    if
+        Args::option(args.&, "h", false, "Display this help message")
+        or Args::option(args.&, "gui", false, "Run in GUI mode instead of TUI.")
+        or Args::parse(args.&) {
+        Console::error("Failed to set params and parse CLI.");
+        return 1;
+    }
+    
+    switch Args::get(args.&, "h") {
+        @Some -> |value| if value.Bool {
+            Args::help(args.&);
+            return 0;
+        }
+        @None -> { }
+    }
+    
+    return switch Args::get(args.&, "gui") {
+        @Some -> |value|
+            if (value.Bool) gui()
+            else tui(),
+        @None -> tui(),
+    };
+};
+
+let gui = fn () -> i32 {
+    return 0;
+};
+
+let tui = fn () -> i32 {
+    let Buffer = core::buffer::Buffer;
+    
+    let maybeBuf = Buffer::create(11);
+    switch maybeBuf {
+        @Some -> { }
+        @None -> {
+            Console::error("Failed to create buffer");
+            return 1;
+        }
+    }
+    let buf = maybeBuf.Some;
+    
+    switch Buffer::assign(buf.&, "Hello World") {
+        @Some -> |msg| {
+            Console::error(msg);
+            return 1;
+        }
+        else -> { }
+    }
+    
     return 0;
 };

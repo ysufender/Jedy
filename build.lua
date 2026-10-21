@@ -112,8 +112,23 @@ project
         }))
 
     :step(Efile.Step
+        .init("cole")
+        :action((function()
+            if arg[2] == "run" then
+                if arg[3] == "debug" then
+                    return "../Cole/zig-out/debug-linux-x86_64/v0.0.1/cole -w migration main.cole -I ../../Cole/stdlib -o jedy && migration/build/c/jedy"
+                else
+                    return "cole -w migration main.cole -I ../../Cole/stdlib -o jedy && migration/build/c/jedy"
+                end
+            else
+                return "cole -w migration main.cole -I ../../Cole/stdlib -o jedy"
+            end
+        end)()))
+
+    :step(Efile.Step
         .init("clean")
         :action("rm -rf build")
+        :action("rm -rf migration/build")
         :action((function()
             if arg[2] == "all" then
                 return "rm -rf vendor"
@@ -126,13 +141,14 @@ project
         end)()))
 
     :step(Efile.Step
-        .init("cole")
-        :action("cole migration/main.cole -I migration -I ../Cole/stdlib -o jedy"))
+        .init("help")
+        :action(function()
+            print("Available Steps:")
+            for name, _ in pairs(project.steps) do
+                print("    "..name)
+            end
+        end))
 
-    :step(Efile.Step
-        .init("cole-run")
-        :dependOnStep("cole")
-        :action("build/c/jedy"))
 
 require("src.build").build(settings, project)
 

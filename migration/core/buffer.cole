@@ -1,0 +1,53 @@
+import std::memory::allocator as Allocator;
+import std::c::memory;
+import std;
+
+let DefaultOverhead = 255;
+
+let max = fn (this: u32, that: u32) -> u32 {
+    return if (this > that) this else that;
+};
+
+pub let Buffer = struct {
+    used: mut u32,
+    cap: mut u32,
+    buffer: mut []mut u8,
+    allocator: Allocator::Allocator,
+    
+    let construct = fn (capacity: u32, buffer: mut []mut u8, allocator: Allocator::Allocator) -> Buffer {
+        return (0, capacity, buffer, allocator);
+    };
+    
+    pub let create = fn (self: *mut Buffer, size: u32) -> std::Option(Buffer) {
+        let cap = size + DefaultOverhead;
+        let mem = Allocator::alloc(self.allocator, cap, sizeOf(u8));
+
+        return (@Some, create(cap, mem));
+    };
+    
+    pub let assign = fn (self: *mut Buffer, buf: []u8) -> std::Option([]u8) {
+        if (!reserve(self, buf.len)) {
+            return "Out of memory.";
+        }
+
+        if (buf.len != 0) {
+            std::c::memory::copy(cast(self.buffer.ptr), cast(buf.ptr), buf.len);
+        }
+        
+        self.used = buf.len;
+        return (@None, ());
+    };
+    
+    pub let reserve = fn (self: *mut Buffer, needed: u32) -> bool {
+        if needed <= self.cap {
+            return true;
+        }
+
+        let newCap = max(needed, self.cap * 2);
+        let raw = Allocator::realloc(self.allocator, self.buffer, newCap);
+
+        self.buffer = raw;
+        self.cap = newCap;
+        return true;
+    };
+};
