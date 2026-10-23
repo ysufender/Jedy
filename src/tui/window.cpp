@@ -218,6 +218,12 @@ namespace tui::window {
 
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
+                    for (auto const& pane : this->panes) {
+                        if (pane->getname() == buffer) {
+                            return "Buffer already exists";
+                        }
+                    }
+
                     this->panes.emplace_back(std::make_unique<Pane>(buffer));
                 } catch (std::exception const&) {
                     return "Failed to add pane.";
@@ -245,6 +251,9 @@ namespace tui::window {
                     case Mode::Selection: goto selection;
                     case Mode::Search: goto search;
                 }
+
+unhandled:
+                return std::nullopt;
 
 selection:
                 if (c == core::input::Escape) {
@@ -329,7 +338,7 @@ selection:
                 else if (c == core::input::j) {
                     return this->moveDown();
                 }
-                return std::nullopt;
+                goto unhandled;
 
 input:
                 if (c == core::input::Escape) {
@@ -437,7 +446,7 @@ input:
                     
                     return pane->setpos({pos.line + 1, indent + 1, pos.off + 1 + indent});
                 }
-                return std::nullopt;
+                goto unhandled;
 
 navigation:
                 if (c == core::input::i) {
@@ -695,7 +704,7 @@ navigation:
                 else if (c == core::input::j) {
                     return this->moveDown();
                 }
-                return std::nullopt;
+                goto unhandled;
 
 search:
                 if (c == core::input::Escape) {
@@ -726,7 +735,10 @@ search:
                 }
 
                 commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
-                return this->search(false);
+                if (auto const res = this->search(false)) {
+                    return res;
+                }
+                goto unhandled;
 
 command:
                 if (c == core::input::Escape) {
@@ -769,6 +781,7 @@ command:
                                 }
 
                                 auto const bufName = this->panes.at(this->active)->getname();
+
                                 auto res = this->manager.remove(bufName);
                                 if (res) {
                                     this->errBuf = res;
@@ -854,6 +867,54 @@ command:
                                 continue;
                             }
 
+                            case 'E': {
+                                cmd.remove_prefix(1);
+                                while (!cmd.empty() && cmd.front() == ' ') {
+                                    cmd.remove_prefix(1);
+                                }
+
+                                std::filesystem::path targetPath = std::filesystem::current_path();
+                                if (!cmd.empty()) {
+                                    targetPath /= std::string_view(cmd);
+                                }
+                                cmd = { };
+
+                                std::stringstream ss;
+                                std::error_code ec;
+
+                                if (!std::filesystem::exists(targetPath, ec) || !std::filesystem::is_directory(targetPath, ec)) {
+                                    this->errBuf = "Invalid directory path.";
+                                    continue;
+                                }
+                                
+                                for (auto const& entry : std::filesystem::directory_iterator(targetPath, ec)) {
+                                    if (entry.is_directory(ec)) {
+                                        ss << "> " << entry.path().filename().string() << '\n';
+                                    } else {
+                                        ss << entry.path().filename().string() << '\n';
+                                    }
+                                }
+
+                                auto const maybe = this->manager.get("<explorer>");
+                                core::buffer::Buffer* buf;
+
+                                if (maybe) { buf = maybe.value(); }
+                                else {
+                                    auto const res = this->manager.buffer("<explorer>", ss.view().size());
+                                    if (res) { return res; }
+
+                                    buf = this->manager.get("<explorer>").value();
+                                }
+
+                                buf->assign(ss.str());
+
+                                auto const res = this->addPane("<explorer>");
+                                if (res) {
+                                    this->errBuf = res;
+                                }
+                                continue;
+                            }
+
                             case 'e': {
                                 cmd.remove_prefix(1);
                                 while (!cmd.empty() && cmd.front() == ' ') {
@@ -910,7 +971,7 @@ command:
                         commandBuffer->append(commandBuffer->view().size(), ' ');
                     }
                 }
-                return std::nullopt;
+                goto unhandled;
             }
 
             auto draw() -> std::optional<std::string_view> override {

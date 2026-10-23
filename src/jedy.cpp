@@ -54,6 +54,12 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
         return 1;
     }
 
+    res = buffman.buffer("<explorer>", 256);
+    if (res) {
+        std::println("Error: Failed to create explorer buffer {}.", res.value());
+        return 1;
+    }
+
     tui::window::Window window { buffman, std::make_unique<tui::input::Input>() };
     res = window.addPane(file);
     if (res) {
@@ -63,7 +69,7 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
 
     do {
         auto const res = window.process();
-        window.errBuf = res ? res : window.errBuf;
+        window.errBuf = res ? res.value() : window.errBuf;
         window.draw();
     } while (!window.shouldClose());
 
