@@ -20,8 +20,8 @@ namespace core::buffer {
         public:
             BufferManager() : bufferMap() { }
 
-            auto buffer(std::string_view const name, std::size_t const bufSize) -> std::optional<std::string_view> {
-                auto buf = buffer::Buffer::create(bufSize);
+            auto buffer(std::string_view const name, std::size_t const bufSize, bool const readonly = false) -> std::optional<std::string_view> {
+                auto buf = buffer::Buffer::create(bufSize, readonly);
                 if (!buf) {
                     return "Failed to create buffer.";
                 }

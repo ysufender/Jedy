@@ -14,11 +14,13 @@ namespace core::buffer {
             std::size_t used;
             std::size_t cap;
             std::unique_ptr<char[], FreeDeleter> buffer;
+            bool readonly;
 
-            Buffer(std::size_t const cap, std::unique_ptr<char[], FreeDeleter>&& buffer)
+            Buffer(std::size_t const cap, std::unique_ptr<char[], FreeDeleter>&& buffer, bool const readonly)
                 : used(0),
                   cap(cap),
-                  buffer(std::move(buffer)) { }
+                  buffer(std::move(buffer)),
+                  readonly(readonly) { }
 
             auto reserve(std::size_t const needed) -> bool {
                 if (needed <= this->cap) {
@@ -41,20 +43,22 @@ namespace core::buffer {
             Buffer(Buffer&& other) noexcept
                 : used(std::exchange(other.used, 0)),
                   cap(std::exchange(other.cap, 0)),
-                  buffer(std::move(other.buffer)) { }
+                  buffer(std::move(other.buffer)),
+                  readonly(other.readonly) { }
 
             auto operator=(Buffer&& other) noexcept -> Buffer& {
                 if (this != &other) {
-                    used = std::exchange(other.used, 0);
-                    cap = std::exchange(other.cap, 0);
-                    buffer = std::move(other.buffer);
+                    this->used = std::exchange(other.used, 0);
+                    this->cap = std::exchange(other.cap, 0);
+                    this->buffer = std::move(other.buffer);
+                    this->readonly = other.readonly;
                 }
                 return *this;
             }
 
             static constexpr std::size_t DefaultOverhead = 255;
 
-            static auto create(std::size_t const size) -> std::optional<Buffer> {
+            static auto create(std::size_t const size, bool const readonly) -> std::optional<Buffer> {
                 auto const cap = size + DefaultOverhead;
                 std::unique_ptr<char[], FreeDeleter> mem{static_cast<char*>(std::malloc(cap))};
 
@@ -62,7 +66,7 @@ namespace core::buffer {
                     return std::nullopt;
                 }
 
-                return Buffer{cap, std::move(mem)};
+                return Buffer{cap, std::move(mem), readonly};
             }
 
             auto assign(std::string_view const buf) -> std::optional<std::string_view> {
@@ -78,7 +82,10 @@ namespace core::buffer {
             }
 
             auto append(std::size_t const off, char const data) -> std::optional<std::string_view> {
-                if (off > this->used) {
+                if (this->readonly) {
+                    return "Readonly buffer.";
+                }
+                else if (off > this->used) {
                     return "Offset is past the end of the buffer.";
                 }
 
@@ -93,7 +100,10 @@ namespace core::buffer {
             }
 
             auto remove(std::size_t const off) -> std::optional<std::string_view> {
-                if (off > this->used) {
+                if (this->readonly) {
+                    return "Readonly buffer.";
+                }
+                else if (off > this->used) {
                     return "Offset is past the end of the buffer.";
                 }
 
@@ -108,7 +118,10 @@ namespace core::buffer {
             }
 
             auto modify(std::size_t const off, char const data) -> std::optional<std::string_view> {
-                if (off >= this->used) {
+                if (this->readonly) {
+                    return "Readonly buffer.";
+                }
+                else if (off >= this->used) {
                     return "Out of bounds";
                 }
 

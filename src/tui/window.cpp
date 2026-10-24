@@ -218,10 +218,13 @@ namespace tui::window {
 
             auto addPane(std::string_view const buffer) -> std::optional<std::string_view> override {
                 try {
+                    int idx = 0;
                     for (auto const& pane : this->panes) {
                         if (pane->getname() == buffer) {
+                            this->switchPane(idx);
                             return "Buffer already exists";
                         }
+                        idx++;
                     }
 
                     this->panes.emplace_back(std::make_unique<Pane>(buffer));
@@ -709,8 +712,7 @@ navigation:
 search:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
-                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
-                    return std::nullopt;
+                    return commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
 
                 if (c == core::input::Backspace) {
@@ -722,8 +724,7 @@ search:
 
                 if (c == core::input::CR || c == core::input::LF) {
                     this->mode = Mode::Navigation;
-                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
-                    return std::nullopt;
+                    return commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
 
                 if (c == core::input::HTab) {
@@ -734,7 +735,9 @@ search:
                     return std::nullopt;
                 }
 
-                commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
+                if (auto const res = commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c))) {
+                    return res;
+                }
                 if (auto const res = this->search(false)) {
                     return res;
                 }
@@ -743,7 +746,7 @@ search:
 command:
                 if (c == core::input::Escape) {
                     this->mode = Mode::Navigation;
-                    commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
+                    return commandBuffer->assign(ModeStr[static_cast<int>(this->mode)]);
                 }
                 else if (c == core::input::Backspace) {
                     if (commandBuffer->view().size() > 1) {
@@ -900,7 +903,7 @@ command:
 
                                 if (maybe) { buf = maybe.value(); }
                                 else {
-                                    auto const res = this->manager.buffer("<explorer>", ss.view().size());
+                                    auto const res = this->manager.buffer("<explorer>", ss.view().size(), true);
                                     if (res) { return res; }
 
                                     buf = this->manager.get("<explorer>").value();
@@ -964,11 +967,11 @@ command:
                     return result;
                 }
                 else if (!std::iscntrl(c)) {
-                    commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
+                    return commandBuffer->append(commandBuffer->view().size(), static_cast<char>(c));
                 }
                 else if (c == core::input::HTab) {
                     for (int i = 0; i < 4; i++) {
-                        commandBuffer->append(commandBuffer->view().size(), ' ');
+                        return commandBuffer->append(commandBuffer->view().size(), ' ');
                     }
                 }
                 goto unhandled;
@@ -1475,7 +1478,7 @@ command:
                 std::ifstream in { std::string{name}, std::ios::binary | std::ios::ate };
                 auto const size = in.is_open() ? static_cast<std::size_t>(in.tellg()) : std::size_t{0};
 
-                auto res = this->manager.buffer(name, size);
+                auto res = this->manager.buffer(name, size, false);
                 if (res) {
                     return res;
                 }
@@ -1510,7 +1513,7 @@ command:
                     in.seekg(0);
                     auto res = this->manager.remove(name);
                     if (res) { return res; }
-                    res = this->manager.buffer(name, size);
+                    res = this->manager.buffer(name, size, false);
                     if (res) { return res; }
                     auto const target = this->manager.get(name).value();
                     

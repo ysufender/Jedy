@@ -35,26 +35,26 @@ auto tui_mode(core::cli::Args<ArgCount> const& cli) -> int {
         }
     }
 
-    auto res = buffman.buffer(file, size);
+    auto res = buffman.buffer(file, size, false);
     if (res) {
         std::println("Error: Failed to create buffer. {}", res.value());
         return 1;
     }
     buffman.get(file).value()->assign(text);
 
-    res = buffman.buffer("<command_buffer>", 256);
+    res = buffman.buffer("<command_buffer>", 256, false);
     if (res) {
         std::println("Error: Failed to create command buffer {}.", res.value());
         return 1;
     }
 
-    res = buffman.buffer("<copy>", 256);
+    res = buffman.buffer("<copy>", 256, true);
     if (res) {
         std::println("Error: Failed to create copy buffer {}.", res.value());
         return 1;
     }
 
-    res = buffman.buffer("<explorer>", 256);
+    res = buffman.buffer("<explorer>", 256, true);
     if (res) {
         std::println("Error: Failed to create explorer buffer {}.", res.value());
         return 1;
