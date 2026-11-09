@@ -27,11 +27,13 @@ pub let Value = union(enum) {
 };
 
 pub let Args = struct {
-    args: mut [TotalArgs] mut struct {
+    let Entry = struct {
         name: []u8,
         value: Value,
         description: []u8,
-    },
+    };
+
+    args: mut [TotalArgs]mut Entry,
     size: mut u32,
     _args: [][]u8,
 

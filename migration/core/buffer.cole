@@ -1,6 +1,11 @@
-import std::memory::allocator as Allocator;
+import std::collections::hashmap;
+import std::memory::allocator;
 import std::c::memory;
+import std::hash;
 import std;
+
+let Allocator = std::memory::allocator::Allocator;
+let BufferMap = std::collections::hashmap::HashMap([]u8, Buffer, std::hash::FNV1a64, 75);
 
 let DefaultOverhead = 255;
 
@@ -12,13 +17,17 @@ pub let Buffer = struct {
     used: mut u32,
     cap: mut u32,
     buffer: mut []mut u8,
-    allocator: Allocator::Allocator,
+    readonly: bool,
 
-    pub let create = fn (allocator: Allocator::Allocator, size: u32) -> std::Option(Buffer) {
+    pub let destroy = fn (self: *Buffer, gpa: Allocator) -> void {
+        Allocator::dealloc(u8)(gpa, self.buffer);
+    };
+
+    pub let create = fn (gpa: Allocator, size: u32, readonly: bool) -> std::Option(mut Buffer) {
         let cap = size + DefaultOverhead;
-        let mem: mut []mut u8 = cast(Allocator::alloc(allocator, cap, sizeOf(u8)));
+        let mem = Allocator::alloc(u8)(gpa, cap);
 
-        return (@Some, construct(cap, mem, allocator));
+        return (@Some, construct(cap, mem, readonly));
     };
     
     pub let assign = fn (self: *mut Buffer, buf: []u8) -> std::Option([]u8) {
@@ -38,20 +47,75 @@ pub let Buffer = struct {
         return self.buffer[0..self.used];
     };
     
-    let reserve = fn (self: *mut Buffer, needed: u32) -> bool {
+    let reserve = fn (self: *mut Buffer, gpa: Allocator, needed: u32) -> bool {
         if needed <= self.cap {
             return true;
         }
 
         let newCap = max(needed, self.cap * 2);
-        let raw = Allocator::realloc(self.allocator, cast(self.buffer), newCap);
+        let raw = Allocator::realloc(u8)(gpa, cast(self.buffer), newCap);
+        switch raw {
+            @Ok -> { }
+            else -> return false;
+        }
 
         self.buffer = cast(raw);
         self.cap = newCap;
         return true;
     };
     
-    let construct = fn (capacity: u32, buffer: mut []mut u8, allocator: Allocator::Allocator) -> Buffer {
-        return (0, capacity, buffer, allocator);
+    let construct = fn (capacity: u32, buffer: mut []mut u8, readonly: bool) -> Buffer {
+        return (0, capacity, buffer, readonly);
+    };
+};
+
+pub let Manager = struct {
+    gpa: Allocator,
+    map: BufferMap,
+
+    pub let init = fn (gpa: Allocator) -> std::Option(mut Manager) {
+        switch BufferMap::init(gpa) {
+            @Some -> |map| {
+                return (@Some, gpa, map);
+            }
+            @None -> return (@None, ());
+        }
+
+        return (@None, ());
+    };
+
+    pub let buffer = fn (self: *mut Manager, name: []u8, size: u32, readonly: bool) -> std::Option([]u8) {
+        switch Buffer::create(self.gpa, size, readonly) {
+            @Some -> |buf| {
+                if BufferMap::contains(self.map.&, name) {
+                    return (@Some, "A buffer with the same name already exists.");
+                }
+
+                switch BufferMap::put(self.map.&, name, buf) {
+                    @Ok -> { }
+                    @Err -> return (@Some, "Allocation error while adding buffer.");
+                }
+            }
+            @None -> return (@Some, "Failed to create buffer");
+        }
+
+        return (@None, ());
+    };
+
+    pub let get = fn (self: *Manager, name: []u8) -> std::Option(*mut Buffer) {
+        return BufferMap::get(self.map.&, name);
+    };
+
+    pub let remove = fn (self: *mut Manager, name: []u8) -> std::Option([]u8) {
+        return
+            if (BufferMap::remove(self.map.&, name)) (@None, ())
+            else (@Some, "No such buffer.");
+    };
+
+    pub let flush = fn (self: *Manager, name: []u8) -> std::Option([]u8) {
+        return switch get(self, name) {
+            @Some -> (@Some, "IO is not yet implemented."),
+            @None -> (@Some, "No buffer found with given name."),
+        };
     };
 };

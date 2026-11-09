@@ -4,9 +4,9 @@ import std::c as C;
 import core::cli;
 import core::buffer;
 
-let main = fn (_args: [][]u8) -> i32 {
-    let Args = core::cli::Args;
+let Args = core::cli::Args;
 
+let main = fn (_args: [][]u8) -> i32 {
     let args = Args::create(_args);
 
     if
@@ -27,19 +27,36 @@ let main = fn (_args: [][]u8) -> i32 {
     
     return switch Args::get(args.&, "gui") {
         @Some -> |value|
-            if (value.Bool) gui()
-            else tui(),
-        @None -> tui(),
+            if (value.Bool) gui(args.&)
+            else tui(args.&),
+        @None -> tui(args.&),
     };
 };
 
-let gui = fn () -> i32 {
-    return 0;
+let gui = fn (args: *Args) -> i32 {
+    Console::error("GUI Mode is not yet implemented.");
+    return 1;
 };
 
-let tui = fn () -> i32 {
+let tui = fn (args: *Args) -> i32 {
     let Buffer = core::buffer::Buffer;
     let Manager = core::buffer::Manager;
+    let gpa = C::Allocator;
+
+    let manager: mut Manager = undefined;
+    switch Manager::init(gpa) {
+        @Some -> |m| manager = m;
+        @None -> {
+            Console::error("Failed to create buffer manager.");
+            return 1;
+        }
+    }
+
+    let size = 0;
+    {
+    }
+
+    let text = "";
     
     return 0;
 };

@@ -13,6 +13,8 @@ version  = "0.0.1",
 
     efile    = Efile,
 
+    cole     = "cole-alpha-fast-linux-x86_64",
+
     vendor   = {
         ["ftxui"] = {
             enabled = true,
@@ -115,13 +117,9 @@ project
         .init("cole")
         :action((function()
             if arg[2] == "run" then
-                if arg[3] == "debug" then
-                    return "../Cole/zig-out/debug-linux-x86_64/v0.0.1/cole -w migration main.cole -I ../../Cole/stdlib -o jedy && migration/build/c/jedy"
-                else
-                    return "cole -w migration main.cole -I ../../Cole/stdlib -o jedy && migration/build/c/jedy"
-                end
+                return settings.cole.." -I migration main.cole -I ../Cole/stdlib -o jedy && build/c/jedy"
             else
-                return "cole -w migration main.cole -I ../../Cole/stdlib -o jedy"
+                return settings.cole.." -I migration main.cole -I ../Cole/stdlib -o jedy"
             end
         end)()))
 
