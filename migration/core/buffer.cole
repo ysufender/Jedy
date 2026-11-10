@@ -25,13 +25,13 @@ pub let Buffer = struct {
 
     pub let create = fn (gpa: Allocator, size: u32, readonly: bool) -> std::Option(mut Buffer) {
         let cap = size + DefaultOverhead;
-        let mem = Allocator::alloc(u8)(gpa, cap);
+        let mem = Allocator::alloc(u8)(gpa, cap).Ok;
 
         return (@Some, construct(cap, mem, readonly));
     };
     
-    pub let assign = fn (self: *mut Buffer, buf: []u8) -> std::Option([]u8) {
-        if !reserve(self, buf.len) {
+    pub let assign = fn (self: *mut Buffer, gpa: Allocator, buf: []u8) -> std::Option([]u8) {
+        if !reserve(self, gpa, buf.len) {
             return (@Some, "Out of memory.");
         }
 
@@ -59,7 +59,7 @@ pub let Buffer = struct {
             else -> return false;
         }
 
-        self.buffer = cast(raw);
+        self.buffer = cast(raw.Ok);
         self.cap = newCap;
         return true;
     };
@@ -91,7 +91,7 @@ pub let Manager = struct {
                     return (@Some, "A buffer with the same name already exists.");
                 }
 
-                switch BufferMap::put(self.map.&, name, buf) {
+                switch BufferMap::put(self.map.&, self.gpa, name, buf) {
                     @Ok -> { }
                     @Err -> return (@Some, "Allocation error while adding buffer.");
                 }
@@ -103,7 +103,10 @@ pub let Manager = struct {
     };
 
     pub let get = fn (self: *Manager, name: []u8) -> std::Option(*mut Buffer) {
-        return BufferMap::get(self.map.&, name);
+        return switch BufferMap::get(self.map.&, name) {
+            @Some -> |b| (@Some, b),
+            else -> (@None, ())
+        };
     };
 
     pub let remove = fn (self: *mut Manager, name: []u8) -> std::Option([]u8) {

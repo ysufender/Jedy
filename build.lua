@@ -13,7 +13,7 @@ version  = "0.0.1",
 
     efile    = Efile,
 
-    cole     = "cole-alpha-fast-linux-x86_64",
+    cole     = "cole-alpha-fast-linux-x86_64 --debug ",
 
     vendor   = {
         ["ftxui"] = {

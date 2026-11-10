@@ -1,10 +1,19 @@
+import std::memory::allocator::arena;
 import std::io::console as Console;
+import std::io::stream as Stream;
+import std::memory::allocator;
+import std::io::file as File;
 import std::c as C;
+import std::debug;
 
 import core::cli;
 import core::buffer;
 
+let print = std::debug::print;
+
 let Args = core::cli::Args;
+let Arena = std::memory::allocator::arena::Arena;
+let Allocator = std::memory::allocator::Allocator;
 
 let main = fn (_args: [][]u8) -> i32 {
     let args = Args::create(_args);
@@ -12,10 +21,18 @@ let main = fn (_args: [][]u8) -> i32 {
     if
         Args::option(args.&, "h", false, "Display this help message")
         or Args::option(args.&, "gui", false, "Run in GUI mode instead of TUI.")
+        or Args::param(args.&, "file", "default.txt", "File to open.")
         or Args::parse(args.&) {
         Console::error("Failed to set params and parse CLI.");
         return 1;
     }
+
+    let arena: mut Arena = undefined;
+    switch Arena::init(C::Allocator, Arena::StandardSize) {
+        @Some -> |s| arena = s;
+        else -> return 1;
+    }
+    let gpa = Arena::allocator(arena.&);
     
     switch Args::get(args.&, "h") {
         @Some -> |value| if value.Bool {
@@ -25,12 +42,15 @@ let main = fn (_args: [][]u8) -> i32 {
         @None -> { }
     }
     
-    return switch Args::get(args.&, "gui") {
+    let res = switch Args::get(args.&, "gui") {
         @Some -> |value|
             if (value.Bool) gui(args.&)
-            else tui(args.&),
-        @None -> tui(args.&),
+            else tui(args.&, gpa),
+        @None -> tui(args.&, gpa),
     };
+
+    Arena::deinit(arena.&);
+    return 0;
 };
 
 let gui = fn (args: *Args) -> i32 {
@@ -38,10 +58,9 @@ let gui = fn (args: *Args) -> i32 {
     return 1;
 };
 
-let tui = fn (args: *Args) -> i32 {
+let tui = fn (args: *Args, gpa: Allocator) -> i32 {
     let Buffer = core::buffer::Buffer;
     let Manager = core::buffer::Manager;
-    let gpa = C::Allocator;
 
     let manager: mut Manager = undefined;
     switch Manager::init(gpa) {
@@ -52,11 +71,70 @@ let tui = fn (args: *Args) -> i32 {
         }
     }
 
-    let size = 0;
+    let file = switch Args::get(args, "file") {
+        @Some -> |f| f.String,
+        else -> "",
+    };
+
+    let text: mut []u8 = "";
     {
+        switch File::Input::open(file, gpa, false) {
+            @Ok -> |f| {
+                let stream = File::Input::stream(f);
+                switch Stream::Input::exhaust(stream, gpa) {
+                    @Ok -> |t| text = t;
+                    @Err -> |err| {
+                        print("Error while reaeding file: %", ([]u8))((file));
+                        return 1;
+                    }
+                    @EOS -> unreachable();
+                }
+            }
+            else -> { }
+        }
     }
 
-    let text = "";
+    switch Manager::buffer(manager.&, file, text.len, false) {
+        @Some -> |s| {
+            print("Error: Failed to create buffer, %", ([]u8))((s));
+            return 1;
+        }
+        else -> { }
+    }
+
+    switch Buffer::assign(Manager::get(manager.&, file).Some, manager.gpa, text) {
+        @Some -> |s| {
+            print("Error: Failed to assign to buffer, %", ([]u8))((s));
+            return 1;
+        }
+        else -> { }
+    }
+
+    switch Manager::buffer(manager.&, "<command_buffer>", 256, false) {
+        @Some -> |s| {
+            print("Error: Failed to create command buffer, %", ([]u8))((s));
+            return 1;
+        }
+        else -> { }
+    }
+
+    switch Manager::buffer(manager.&, "<copy>", 256, false) {
+        @Some -> |s| {
+            print("Error: Failed to create copy buffer, %", ([]u8))((s));
+            return 1;
+        }
+        else -> { }
+    }
+
+    switch Manager::buffer(manager.&, "<explorer>", 256, true) {
+        @Some -> |s| {
+            print("Error: Failed to create explorer buffer, %", ([]u8))((s));
+            return 1;
+        }
+        else -> { }
+    }
+
+    print("%", ([]u8))((text));
     
     return 0;
 };

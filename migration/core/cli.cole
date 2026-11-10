@@ -2,7 +2,7 @@ import std;
 import std::string;
 import std::io::console as Console;
 
-pub let TotalArgs = 2;
+pub let TotalArgs = 3;
 
 pub let Value = union(enum) {
     Undefined: void,
