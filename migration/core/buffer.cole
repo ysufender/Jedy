@@ -20,18 +20,18 @@ pub let Buffer = struct {
     readonly: bool,
 
     pub let destroy = fn (self: *Buffer, gpa: Allocator) -> void {
-        Allocator::dealloc(u8)(gpa, self.buffer);
+        gpa.dealloc(u8)(self.buffer);
     };
 
     pub let create = fn (gpa: Allocator, size: u32, readonly: bool) -> std::Option(mut Buffer) {
         let cap = size + DefaultOverhead;
-        let mem = Allocator::alloc(u8)(gpa, cap).Ok;
+        let mem = gpa.alloc(u8)(cap).Ok;
 
         return (@Some, construct(cap, mem, readonly));
     };
     
     pub let assign = fn (self: *mut Buffer, gpa: Allocator, buf: []u8) -> std::Option([]u8) {
-        if !reserve(self, gpa, buf.len) {
+        if !self.reserve(gpa, buf.len) {
             return (@Some, "Out of memory.");
         }
 
@@ -53,7 +53,7 @@ pub let Buffer = struct {
         }
 
         let newCap = max(needed, self.cap * 2);
-        let raw = Allocator::realloc(u8)(gpa, cast(self.buffer), newCap);
+        let raw = gpa.realloc(u8)(cast(self.buffer), newCap);
         switch raw {
             @Ok -> { }
             else -> return false;
@@ -87,11 +87,11 @@ pub let Manager = struct {
     pub let buffer = fn (self: *mut Manager, name: []u8, size: u32, readonly: bool) -> std::Option([]u8) {
         switch Buffer::create(self.gpa, size, readonly) {
             @Some -> |buf| {
-                if BufferMap::contains(self.map.&, name) {
+                if self.map.&.contains(name) {
                     return (@Some, "A buffer with the same name already exists.");
                 }
 
-                switch BufferMap::put(self.map.&, self.gpa, name, buf) {
+                switch self.map.&.put(self.gpa, name, buf) {
                     @Ok -> { }
                     @Err -> return (@Some, "Allocation error while adding buffer.");
                 }
@@ -103,7 +103,7 @@ pub let Manager = struct {
     };
 
     pub let get = fn (self: *Manager, name: []u8) -> std::Option(*mut Buffer) {
-        return switch BufferMap::get(self.map.&, name) {
+        return switch self.map.&.get(name) {
             @Some -> |b| (@Some, b),
             else -> (@None, ())
         };
@@ -111,12 +111,12 @@ pub let Manager = struct {
 
     pub let remove = fn (self: *mut Manager, name: []u8) -> std::Option([]u8) {
         return
-            if (BufferMap::remove(self.map.&, name)) (@None, ())
+            if (self.map.&.remove(name)) (@None, ())
             else (@Some, "No such buffer.");
     };
 
     pub let flush = fn (self: *Manager, name: []u8) -> std::Option([]u8) {
-        return switch get(self, name) {
+        return switch self.get(name) {
             @Some -> (@Some, "IO is not yet implemented."),
             @None -> (@Some, "No buffer found with given name."),
         };

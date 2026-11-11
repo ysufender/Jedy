@@ -1,0 +1,91 @@
+import std::memory;
+import std::ascii;
+import std::math;
+
+import core::buffer;
+import core;
+
+pub let Window = struct {
+    let Mode = enum {
+        Navigation,
+        Input,
+        Selection,
+        Command,
+        Search,
+
+        pub let buildStringTable = #(@comptime) fn () -> [typeInfo(Mode).Enum.fields.len][]u8 {
+            let strTable: [typeInfo(Mode).Enum.fields.len]mut []u8 = undefined;
+            for 0..typeInfo(Mode).Enum.fields.len, |i| {
+                strTable[i] = typeInfo(Mode).Enum.fields[i].name;
+            }
+            return strTable;
+        };
+    };
+
+    let ModeStr = Mode::buildStringTable();
+
+    let WindowContext = struct {
+        manager: *mut core::buffer::Manager,
+    };
+};
+
+
+/*
+ * Helpers
+ */
+
+let nthOccurrence = std::memory::findNth(u8);
+
+let computeTopLine = fn (text: []u8, line: u32, dimy: u32) -> u32 {
+    let ymax = std::math::max(u32)(dimy - 2, 0);
+    let half = ymax / 2;
+    let total = std::memory::count(u8)(text, '\n') + 1;
+    let maxTop = if (total > ymax) total - ymax + 1 else 1;
+    return std::math::min(if (line > half) line - half else 1, maxTop);
+};
+
+let charClass = fn (c: u8) -> u8 {
+    if (std::ascii::isWhitespace(c)) { return 0; }
+    if (std::ascii::isAlphaNumeric(c) or c == '_') { return 1; }
+    return 2;
+};
+
+let lineEnd = fn (text: []u8 , off: u32) -> u32 {
+    let terminators = [3]u8('\n', '\0', '\x03');
+    return std::min(
+        std::memory::findFirsOf(text[off..text.len], terminators[0..3]),
+        text.len
+    );
+};
+
+let indentAt = fn (text: []u8, off: u32) -> u32 {
+    let start = off - (off > 0 ? [&] {
+        auto const nl = text.subview(0, off).rfind('\n');
+        return nl == std::string_view::npos ? off : off - (nl + 1);
+    }() : 0);
+
+    let start =
+        if (off > 0)
+            fn (text: []u8, off: u32) -> u32 {
+                return switch std::memory::findLast(u8)(text[0..off], '\n') {
+                    @Some -> |nl| off - (nl + 1),
+                    else -> off,
+                };
+            }(text, off)
+        else 0
+
+    let end = lineEnd(text, off);
+    let line = text[start..end-start];
+    return std::math:.min(std::memory::findFirstNot(line, ' ').Some, line.len);
+}
+
+let positionAt = fn (text: []u8, off: u32) -> core::Position {
+    let head = text[0..off];
+    let line = std::memory::count(u8)(head, '\n') + 1;
+    let nl = std::memory::findLast(u8)(head, '\n');
+    let lineStart = switch nl {
+        @None -> 0,
+        @Some -> |s| s + 1,
+    };
+    return (line, off - lineStart + 1, off);
+}

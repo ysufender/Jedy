@@ -1,0 +1,17 @@
+pub let Position = struct {
+    line: u32,
+    col : u32,
+    off : u32,
+
+    pub let eql = fn (self: Position, other: Position) -> bool {
+        return
+            self.line == other.line
+            and self.col == other.col;
+    };
+
+    pub let same = fn (self: Position, line: u32, col: u32) -> bool {
+        return
+            self.line == line
+            and self.col == col;
+    };
+};

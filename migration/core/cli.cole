@@ -90,7 +90,7 @@ pub let Args = struct {
             i = i + 1;
 
             if arg[0] == '-' {
-                let maybeValueRef = mutableGet(self, arg[1..arg.len]);
+                let maybeValueRef = self.mutableGet(arg[1..arg.len]);
 
                 switch maybeValueRef {
                     @Some -> |ref| switch ref.tag {

@@ -19,10 +19,10 @@ let main = fn (_args: [][]u8) -> i32 {
     let args = Args::create(_args);
 
     if
-        Args::option(args.&, "h", false, "Display this help message")
-        or Args::option(args.&, "gui", false, "Run in GUI mode instead of TUI.")
-        or Args::param(args.&, "file", "default.txt", "File to open.")
-        or Args::parse(args.&) {
+        args.&.option("h", false, "Display this help message")
+        or args.&.option("gui", false, "Run in GUI mode instead of TUI.")
+        or args.&.param("file", "default.txt", "File to open.")
+        or args.&.parse() {
         Console::error("Failed to set params and parse CLI.");
         return 1;
     }
@@ -32,24 +32,24 @@ let main = fn (_args: [][]u8) -> i32 {
         @Some -> |s| arena = s;
         else -> return 1;
     }
-    let gpa = Arena::allocator(arena.&);
+    let gpa = arena.&.allocator();
     
-    switch Args::get(args.&, "h") {
+    switch args.&.get("h") {
         @Some -> |value| if value.Bool {
-            Args::help(args.&);
+            args.&.help();
             return 0;
         }
         @None -> { }
     }
     
-    let res = switch Args::get(args.&, "gui") {
+    let res = switch args.&.get("gui") {
         @Some -> |value|
             if (value.Bool) gui(args.&)
             else tui(args.&, gpa),
         @None -> tui(args.&, gpa),
     };
 
-    Arena::deinit(arena.&);
+    arena.&.deinit();
     return 0;
 };
 
@@ -71,7 +71,7 @@ let tui = fn (args: *Args, gpa: Allocator) -> i32 {
         }
     }
 
-    let file = switch Args::get(args, "file") {
+    let file = switch args.get("file") {
         @Some -> |f| f.String,
         else -> "",
     };
@@ -80,61 +80,77 @@ let tui = fn (args: *Args, gpa: Allocator) -> i32 {
     {
         switch File::Input::open(file, gpa, false) {
             @Ok -> |f| {
-                let stream = File::Input::stream(f);
-                switch Stream::Input::exhaust(stream, gpa) {
-                    @Ok -> |t| text = t;
+                let stream = f.stream();
+                _ = stream.seek(0, Stream::Base::End);
+                let size = stream.tell();
+                _ = stream.seek(0, Stream::Base::Start);
+
+                switch gpa.alloc(u8)(size) {
+                    @Ok -> |mem| {
+                        for 0..size, |i| {
+                            let res = stream.read();
+
+                            switch res {
+                                @Ok -> |ch| mem[i] = ch;
+                                @Err -> |err| {
+                                    return 1;
+                                }
+                                @EOS -> break;
+                            }
+                        }
+
+                        text = mem;
+                    }
                     @Err -> |err| {
-                        print("Error while reaeding file: %", ([]u8))((file));
                         return 1;
                     }
-                    @EOS -> unreachable();
                 }
             }
             else -> { }
         }
     }
 
-    switch Manager::buffer(manager.&, file, text.len, false) {
+    switch manager.&.buffer(file, text.len, false) {
         @Some -> |s| {
-            print("Error: Failed to create buffer, %", ([]u8))((s));
+            print("Error: Failed to create buffer, %", ([]u8))(@(s));
             return 1;
         }
         else -> { }
     }
 
-    switch Buffer::assign(Manager::get(manager.&, file).Some, manager.gpa, text) {
+    switch manager.&.get(file).Some.assign(manager.gpa, text) {
         @Some -> |s| {
-            print("Error: Failed to assign to buffer, %", ([]u8))((s));
+            print("Error: Failed to assign to buffer, %", ([]u8))(@(s));
             return 1;
         }
         else -> { }
     }
 
-    switch Manager::buffer(manager.&, "<command_buffer>", 256, false) {
+    switch manager.&.buffer("<command_buffer>", 256, false) {
         @Some -> |s| {
-            print("Error: Failed to create command buffer, %", ([]u8))((s));
+            print("Error: Failed to create command buffer, %", ([]u8))(@(s));
             return 1;
         }
         else -> { }
     }
 
-    switch Manager::buffer(manager.&, "<copy>", 256, false) {
+    switch manager.&.buffer("<copy>", 256, false) {
         @Some -> |s| {
-            print("Error: Failed to create copy buffer, %", ([]u8))((s));
+            print("Error: Failed to create copy buffer, %", ([]u8))(@(s));
             return 1;
         }
         else -> { }
     }
 
-    switch Manager::buffer(manager.&, "<explorer>", 256, true) {
+    switch manager.&.buffer("<explorer>", 256, true) {
         @Some -> |s| {
-            print("Error: Failed to create explorer buffer, %", ([]u8))((s));
+            print("Error: Failed to create explorer buffer, %", ([]u8))(@(s));
             return 1;
         }
         else -> { }
     }
 
-    print("%", ([]u8))((text));
+    print("%", (u32))(("\n\0\x03".len));
     
     return 0;
 };
